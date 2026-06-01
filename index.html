@@ -88,6 +88,7 @@
     <div class="who">
       <span id="whoName"></span>
       <span class="role" id="whoRole"></span>
+      <button class="btn" id="pwdBtn">Trocar senha</button>
       <button class="btn" id="logoutBtn">Sair</button>
     </div>
   </header>
@@ -96,6 +97,27 @@
     <p class="sub">Acesse os módulos liberados para o seu perfil.</p>
     <div class="grid" id="appGrid"></div>
   </main>
+</div>
+
+<!-- ============ MODAL TROCAR SENHA ============ -->
+<div id="pwdModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px">
+  <div style="background:#fff;border-radius:18px;padding:30px;width:100%;max-width:380px;border:1px solid var(--line)">
+    <h3 class="serif" style="margin:0 0 4px;font-size:22px">Trocar senha</h3>
+    <p class="sub" style="margin:0 0 22px;font-size:14px">Defina uma nova senha para a sua conta.</p>
+    <div class="field">
+      <label>Nova senha</label>
+      <input type="password" id="pwd1" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirmar nova senha</label>
+      <input type="password" id="pwd2" autocomplete="new-password">
+    </div>
+    <div class="err" id="pwdErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn" id="pwdCancel">Cancelar</button>
+      <button class="btn primary" id="pwdSave">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <div id="bootView" class="center">Carregando…</div>
@@ -143,6 +165,26 @@ $('loginForm').addEventListener('submit', async (e) => {
 });
 
 $('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); });
+
+// ============ TROCAR SENHA ============
+$('pwdBtn').addEventListener('click', () => {
+  $('pwd1').value = ''; $('pwd2').value = ''; $('pwdErr').textContent = '';
+  $('pwdModal').classList.remove('hidden');
+  $('pwd1').focus();
+});
+$('pwdCancel').addEventListener('click', () => $('pwdModal').classList.add('hidden'));
+$('pwdSave').addEventListener('click', async () => {
+  const a = $('pwd1').value, b = $('pwd2').value;
+  $('pwdErr').textContent = '';
+  if (a.length < 8) { $('pwdErr').textContent = 'Use pelo menos 8 caracteres.'; return; }
+  if (a !== b) { $('pwdErr').textContent = 'As senhas não conferem.'; return; }
+  $('pwdSave').textContent = 'Salvando…';
+  const { error } = await sb.auth.updateUser({ password: a });
+  $('pwdSave').textContent = 'Salvar';
+  if (error) { $('pwdErr').textContent = 'Erro: ' + error.message; return; }
+  $('pwdModal').classList.add('hidden');
+  alert('Senha alterada com sucesso.');
+});
 
 // ============ PORTAL ============
 async function renderPortal(user){
