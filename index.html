@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plataforma Sopra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F5F0; --ink:#23211C; --muted:#8a857c; --line:#e6e1d8;
+    --ok:#1D9E75; --warn:#EF9F27; --risk:#E24B4A; --card:#fff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .serif{font-family:'DM Serif Display',serif}
+  .mono{font-family:'DM Mono',monospace}
+  a{color:inherit;text-decoration:none}
+
+  /* topbar */
+  header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line);background:#fff}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .dot{width:12px;height:12px;border-radius:3px;background:var(--ok)}
+  .brand b{font-size:18px;letter-spacing:.2px}
+  .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+  .who .role{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ok);border:1px solid var(--ok);border-radius:999px;padding:2px 9px}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 14px;font-family:inherit;font-size:14px;color:var(--ink);transition:.15s}
+  .btn:hover{border-color:var(--ink)}
+  .btn.primary{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .btn.primary:hover{filter:brightness(.95)}
+
+  /* layout */
+  main{max-width:980px;margin:0 auto;padding:48px 24px}
+  h1.serif{font-size:34px;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 36px;font-size:15px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+  .app{display:block;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;transition:.15s;position:relative;overflow:hidden}
+  .app:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.06);border-color:transparent}
+  .app .ico{font-size:26px;margin-bottom:14px}
+  .app h3{margin:0 0 6px;font-size:18px}
+  .app p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
+  .app .tag{position:absolute;top:16px;right:16px;font-size:11px;color:var(--muted)}
+  .app.locked{opacity:.5;filter:grayscale(.6);cursor:not-allowed}
+  .app .edit{margin-top:14px;font-size:12px;color:var(--ok)}
+
+  /* login */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .auth{width:100%;max-width:380px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:34px}
+  .auth .dot{width:14px;height:14px;border-radius:4px;background:var(--ok);margin-bottom:18px}
+  .auth h2{margin:0 0 4px;font-size:24px}
+  .auth .sub{margin:0 0 24px;font-size:14px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.3px}
+  .field input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;background:var(--bg)}
+  .field input:focus{outline:none;border-color:var(--ok)}
+  .err{color:var(--risk);font-size:13px;min-height:18px;margin:4px 0 10px}
+  .hidden{display:none!important}
+  .center{text-align:center;color:var(--muted);font-size:14px;padding:60px}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="authView" class="auth-wrap hidden">
+  <form class="auth" id="loginForm">
+    <div class="dot"></div>
+    <h2 class="serif">Plataforma Sopra</h2>
+    <p class="sub">Entre com sua conta corporativa.</p>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="email" autocomplete="email" required>
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+    </div>
+    <div class="err" id="loginErr"></div>
+    <button class="btn primary" type="submit" style="width:100%" id="loginBtn">Entrar</button>
+  </form>
+</div>
+
+<!-- ============ PORTAL ============ -->
+<div id="portalView" class="hidden">
+  <header>
+    <div class="brand"><span class="dot"></span><b class="serif">Sopra</b></div>
+    <div class="who">
+      <span id="whoName"></span>
+      <span class="role" id="whoRole"></span>
+      <button class="btn" id="logoutBtn">Sair</button>
+    </div>
+  </header>
+  <main>
+    <h1 class="serif">Seus aplicativos</h1>
+    <p class="sub">Acesse os módulos liberados para o seu perfil.</p>
+    <div class="grid" id="appGrid"></div>
+  </main>
+</div>
+
+<div id="bootView" class="center">Carregando…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ============ CONFIG ============
+const SB_URL = 'https://cgnuelmiacweybmvlbcm.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbnVlbG1pYWN3ZXlibXZsYmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDM0ODMsImV4cCI6MjA5Mjc3OTQ4M30.l02F-jt6CSgZf7wd5Dz0IY6jB9gCLzM6Iny7EsZLNSw';
+
+// Registro de apps — adicionar um novo app = mais uma linha aqui + permissão em app_access.
+const APPS = [
+  { key:'viabilidade', ico:'🏗️', nome:'Viabilidade',  desc:'Estudo de viabilidade econômica de empreendimentos.', path:'https://rmichelon79.github.io/viabilidade/' },
+  { key:'orcamento',   ico:'💰', nome:'Orçamento',     desc:'Planejamento orçamentário multi-empreendimento.',     path:'https://rmichelon79.github.io/orcamento-sopra/' },
+  { key:'gestao',      ico:'🎯', nome:'Gestão',        desc:'Estratégia, OKRs, KPIs e cadências.',                 path:'https://rmichelon79.github.io/sopra-gestao/' },
+];
+
+const sb = supabase.createClient(SB_URL, SB_KEY);
+const $ = id => document.getElementById(id);
+const show = (id) => { ['authView','portalView','bootView'].forEach(v=>$(v).classList.add('hidden')); $(id).classList.remove('hidden'); };
+
+// ============ BOOT ============
+(async function init(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if (session) renderPortal(session.user);
+  else show('authView');
+
+  sb.auth.onAuthStateChange((_e, sess) => {
+    if (sess) renderPortal(sess.user);
+    else show('authView');
+  });
+})();
+
+// ============ LOGIN ============
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('loginErr').textContent = '';
+  $('loginBtn').textContent = 'Entrando…';
+  const { error } = await sb.auth.signInWithPassword({
+    email: $('email').value.trim(),
+    password: $('password').value,
+  });
+  $('loginBtn').textContent = 'Entrar';
+  if (error) $('loginErr').textContent = 'E-mail ou senha inválidos.';
+});
+
+$('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); });
+
+// ============ PORTAL ============
+async function renderPortal(user){
+  show('bootView');
+
+  // perfil (papel) + acessos por app
+  const [{ data:profile }, { data:access }] = await Promise.all([
+    sb.from('profiles').select('nome, role').eq('id', user.id).single(),
+    sb.from('app_access').select('app, can_view, can_edit'),
+  ]);
+
+  const role = profile?.role || 'viewer';
+  const isAdmin = role === 'admin';
+  const accMap = {};
+  (access || []).forEach(a => accMap[a.app] = a);
+
+  $('whoName').textContent = profile?.nome || user.email;
+  $('whoRole').textContent = role;
+
+  const grid = $('appGrid');
+  grid.innerHTML = '';
+  APPS.forEach(app => {
+    const acc = accMap[app.key];
+    const canView = isAdmin || (acc && acc.can_view);
+    const canEdit = isAdmin || (acc && acc.can_edit);
+
+    const card = document.createElement(canView ? 'a' : 'div');
+    card.className = 'app' + (canView ? '' : ' locked');
+    if (canView) card.href = app.path;
+    card.innerHTML = `
+      <div class="ico">${app.ico}</div>
+      <h3>${app.nome}</h3>
+      <p>${app.desc}</p>
+      ${canView ? `<div class="edit">${canEdit ? '✎ pode editar' : '👁 somente leitura'}</div>`
+                : `<div class="tag">sem acesso</div>`}`;
+    grid.appendChild(card);
+  });
+
+  show('portalView');
+}
+</script>
+</body>
+</html>
