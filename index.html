@@ -266,7 +266,7 @@ function renderAdminList(users) {
           <span style="font-size:13px"><b style="display:inline-block;width:82px">${app}</b>
             <label style="margin-right:8px"><input type="checkbox" class="adm-view" data-app="${app}" ${a.can_view ? 'checked' : ''}> ver</label>
             <label><input type="checkbox" class="adm-edit" data-app="${app}" ${a.can_edit ? 'checked' : ''}> editar</label>
-          </span>`).join('')}
+          </span>`; }).join('')}
         <button class="btn primary adm-save">Salvar acessos</button>
       </div>
     </div>`).join('');
