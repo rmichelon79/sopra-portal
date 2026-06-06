@@ -90,6 +90,7 @@
       <span class="role" id="whoRole"></span>
       <button class="btn" id="adminBtn" style="display:none">Usuários</button>
       <button class="btn" id="empBtn" style="display:none">Empreendimentos</button>
+      <button class="btn" id="bkpBtn" style="display:none">Backup</button>
       <button class="btn" id="pwdBtn">Trocar senha</button>
       <button class="btn" id="logoutBtn">Sair</button>
     </div>
@@ -168,6 +169,54 @@
     </details>
     <div id="empList"></div>
   </main>
+</div>
+
+<!-- ============ CENTRO DE BACKUP (admin) ============ -->
+<div id="bkpView" class="hidden" style="position:fixed;inset:0;background:var(--bg);z-index:900;overflow:auto">
+  <header>
+    <div class="brand"><span class="dot"></span><b class="serif">Backup</b></div>
+    <div class="who"><button class="btn" id="bkpClose">← Voltar</button></div>
+  </header>
+  <main>
+    <h1 class="serif">Backup &amp; Restauração</h1>
+    <p class="sub">Snapshot dos três apps (Gestão, Viabilidade, Orçamento) e empreendimentos. Restaurar sobrescreve os dados atuais.</p>
+    <div class="err" id="bkpErr"></div>
+
+    <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px">
+      <h3 class="serif" style="margin:0 0 12px;font-size:18px">Criar backup</h3>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <button class="btn primary" id="bkp-download">↓ Baixar arquivo (.json)</button>
+        <div class="field" style="margin:0;flex:1;min-width:200px"><label>Nome do snapshot na nuvem</label><input id="bkp-nome" placeholder="ex: antes da revisão do orçamento"></div>
+        <button class="btn" id="bkp-salvar">☁ Salvar snapshot</button>
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px">
+      <h3 class="serif" style="margin:0 0 12px;font-size:18px">Snapshots na nuvem</h3>
+      <div id="bkp-list"><p class="sub">Carregando…</p></div>
+    </div>
+
+    <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px">
+      <h3 class="serif" style="margin:0 0 6px;font-size:18px">Restaurar de arquivo</h3>
+      <p class="sub" style="margin:0 0 12px;font-size:13px">Suba um arquivo .json gerado pelo backup. Isso sobrescreve os dados atuais.</p>
+      <input type="file" id="bkp-file" accept="application/json,.json">
+    </div>
+  </main>
+</div>
+
+<!-- ============ MODAL CONFIRMAR RESTAURAÇÃO ============ -->
+<div id="bkpRestoreModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1100;padding:24px">
+  <div style="background:#fff;border-radius:18px;padding:30px;width:100%;max-width:440px;border:1px solid var(--line)">
+    <h3 class="serif" style="margin:0 0 4px;font-size:22px;color:var(--risk)">Confirmar restauração</h3>
+    <p class="sub" style="margin:0 0 16px;font-size:14px" id="bkpRestoreDesc"></p>
+    <p style="font-size:13px;color:var(--ink);margin:0 0 8px">Digite <b>RESTAURAR</b> para confirmar:</p>
+    <div class="field"><input id="bkpRestoreConfirm" autocomplete="off" placeholder="RESTAURAR"></div>
+    <div class="err" id="bkpRestoreErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn" id="bkpRestoreCancel">Cancelar</button>
+      <button class="btn primary" id="bkpRestoreGo" style="background:var(--risk);border-color:var(--risk)">Restaurar agora</button>
+    </div>
+  </div>
 </div>
 
 <div id="bootView" class="center">Carregando…</div>
@@ -410,6 +459,156 @@ $('emp-criar').addEventListener('click', async () => {
   openEmp();
 });
 
+// ============ CENTRO DE BACKUP (admin) ============
+// Tabelas dos 3 apps + empreendimentos. Ordem importa no restore (pais antes de filhos).
+const BKP_SPEC = [
+  ['empreendimentos', 'empreendimentos'],
+  ['gestao_dados',    'dados'],
+  ['orcamentos',      'orcamentos'],
+  ['contas',          'contas'],
+  ['lancamentos',     'lancamentos'],
+  ['orcamento_notas', 'orcamento_notas'],
+  ['viab_estudos',    'viab_estudos'],
+  ['viab_analises',   'viab_analises'],
+  ['viab_estado',     'viab_estado'],
+];
+
+async function collectAllData() {
+  const data = {}; const skipped = [];
+  for (const [key, table] of BKP_SPEC) {
+    const { data: rows, error } = await sb.from(table).select('*');
+    if (error) { skipped.push(`${table} (${error.message})`); continue; }
+    data[key] = rows || [];
+  }
+  return { _meta: { app: 'plataforma-sopra', version: 1, created_at: new Date().toISOString() }, skipped, data };
+}
+
+function _ymd() { return new Date().toISOString().slice(0, 10); }
+function triggerDownload(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function downloadBackup() {
+  $('bkpErr').textContent = ''; const b = $('bkp-download'); const t = b.textContent; b.textContent = 'Gerando…'; b.disabled = true;
+  try {
+    const bundle = await collectAllData();
+    triggerDownload(bundle, `sopra-backup-${_ymd()}.json`);
+    if (bundle.skipped.length) $('bkpErr').textContent = 'Aviso (tabelas puladas): ' + bundle.skipped.join('; ');
+  } catch (e) { $('bkpErr').textContent = e.message; }
+  finally { b.textContent = t; b.disabled = false; }
+}
+
+async function saveSnapshot() {
+  $('bkpErr').textContent = ''; const nome = $('bkp-nome').value.trim() || ('Snapshot ' + _ymd());
+  const b = $('bkp-salvar'); const t = b.textContent; b.textContent = 'Salvando…'; b.disabled = true;
+  try {
+    const bundle = await collectAllData();
+    const { data: { user } } = await sb.auth.getUser();
+    const { error } = await sb.from('backups').insert({ nome, payload: bundle, created_by: user?.id });
+    if (error) throw new Error(error.message);
+    $('bkp-nome').value = ''; await listSnapshots();
+  } catch (e) { $('bkpErr').textContent = e.message; }
+  finally { b.textContent = t; b.disabled = false; }
+}
+
+async function listSnapshots() {
+  const { data, error } = await sb.from('backups').select('id,nome,created_at').order('created_at', { ascending: false });
+  if (error) { $('bkp-list').innerHTML = `<p class="sub">${error.message}</p>`; return; }
+  if (!data || !data.length) { $('bkp-list').innerHTML = '<p class="sub">Nenhum snapshot salvo ainda.</p>'; return; }
+  $('bkp-list').innerHTML = data.map(s => `
+    <div class="app" style="margin-bottom:10px;cursor:default;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap" data-bid="${s.id}">
+      <div><b>${s.nome}</b><div class="sub" style="font-size:12px">${new Date(s.created_at).toLocaleString('pt-BR')}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn bkp-dl">↓ Baixar</button>
+        <button class="btn bkp-rest">Restaurar</button>
+        <button class="btn bkp-del">Excluir</button>
+      </div>
+    </div>`).join('');
+  $('bkp-list').querySelectorAll('[data-bid]').forEach(card => {
+    const id = card.dataset.bid;
+    card.querySelector('.bkp-dl').addEventListener('click', async () => {
+      const { data, error } = await sb.from('backups').select('nome,payload').eq('id', id).single();
+      if (error) { alert(error.message); return; }
+      triggerDownload(data.payload, `sopra-${(data.nome || 'snapshot').replace(/\s+/g, '-')}.json`);
+    });
+    card.querySelector('.bkp-rest').addEventListener('click', async () => {
+      const { data, error } = await sb.from('backups').select('nome,payload').eq('id', id).single();
+      if (error) { alert(error.message); return; }
+      askRestore(`Restaurar do snapshot "${data.nome}"? Isso sobrescreve os dados atuais dos 3 apps.`, data.payload);
+    });
+    card.querySelector('.bkp-del').addEventListener('click', async () => {
+      if (!confirm('Excluir este snapshot?')) return;
+      const { error } = await sb.from('backups').delete().eq('id', id);
+      if (error) { alert(error.message); return; }
+      listSnapshots();
+    });
+  });
+}
+
+// Restore = upsert (merge por PK). Nunca apaga linhas — no pior caso sobrescreve.
+async function restoreData(bundle) {
+  const data = (bundle && bundle.data) || {};
+  const steps = ['empreendimentos', 'orcamentos', 'contas', 'lancamentos', 'orcamento_notas', 'viab_estudos', 'viab_analises', 'viab_estado', 'gestao_dados'];
+  const tableOf = { empreendimentos: 'empreendimentos', orcamentos: 'orcamentos', contas: 'contas', lancamentos: 'lancamentos', orcamento_notas: 'orcamento_notas', viab_estudos: 'viab_estudos', viab_analises: 'viab_analises', viab_estado: 'viab_estado', gestao_dados: 'dados' };
+  for (const key of steps) {
+    const rows = data[key];
+    if (!Array.isArray(rows) || !rows.length) continue;
+    const table = tableOf[key];
+    if (key === 'contas') {
+      // respeita parent_id (self-FK): upsert nível a nível
+      const byNivel = {};
+      rows.forEach(r => { const n = r.nivel || 0; (byNivel[n] = byNivel[n] || []).push(r); });
+      for (const n of Object.keys(byNivel).sort((a, b) => a - b)) {
+        const { error } = await sb.from(table).upsert(byNivel[n]);
+        if (error) throw new Error(`contas nível ${n}: ${error.message}`);
+      }
+    } else {
+      const { error } = await sb.from(table).upsert(rows);
+      if (error) throw new Error(`${table}: ${error.message}`);
+    }
+  }
+}
+
+let _pendingRestore = null;
+function askRestore(desc, payload) {
+  _pendingRestore = payload;
+  $('bkpRestoreDesc').textContent = desc;
+  $('bkpRestoreConfirm').value = ''; $('bkpRestoreErr').textContent = '';
+  $('bkpRestoreModal').classList.remove('hidden');
+  $('bkpRestoreConfirm').focus();
+}
+
+// wiring do centro de backup
+$('bkpBtn').addEventListener('click', () => { $('bkpView').classList.remove('hidden'); $('bkpErr').textContent = ''; listSnapshots(); });
+$('bkpClose').addEventListener('click', () => $('bkpView').classList.add('hidden'));
+$('bkp-download').addEventListener('click', downloadBackup);
+$('bkp-salvar').addEventListener('click', saveSnapshot);
+$('bkpRestoreCancel').addEventListener('click', () => { _pendingRestore = null; $('bkpRestoreModal').classList.add('hidden'); });
+$('bkpRestoreGo').addEventListener('click', async () => {
+  if ($('bkpRestoreConfirm').value.trim().toUpperCase() !== 'RESTAURAR') { $('bkpRestoreErr').textContent = 'Digite RESTAURAR para confirmar.'; return; }
+  const payload = _pendingRestore; if (!payload) return;
+  const b = $('bkpRestoreGo'); const t = b.textContent; b.textContent = 'Restaurando…'; b.disabled = true;
+  try {
+    await restoreData(payload);
+    $('bkpRestoreModal').classList.add('hidden'); _pendingRestore = null;
+    alert('Restauração concluída. Recarregue os apps para ver os dados.');
+  } catch (e) { $('bkpRestoreErr').textContent = e.message; }
+  finally { b.textContent = t; b.disabled = false; }
+});
+$('bkp-file').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { const obj = JSON.parse(r.result); if (!obj || !obj.data) throw new Error('estrutura inesperada'); askRestore(`Restaurar do arquivo "${f.name}"? Isso sobrescreve os dados atuais.`, obj); }
+    catch (err) { $('bkpErr').textContent = 'Arquivo inválido: ' + err.message; }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+});
+
 // ============ PORTAL ============
 async function renderPortal(user){
   show('bootView');
@@ -429,6 +628,7 @@ async function renderPortal(user){
   $('whoRole').textContent = role;
   $('adminBtn').style.display = isAdmin ? '' : 'none';
   $('empBtn').style.display = isAdmin ? '' : 'none';
+  $('bkpBtn').style.display = isAdmin ? '' : 'none';
 
   const grid = $('appGrid');
   grid.innerHTML = '';
