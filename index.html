@@ -310,6 +310,9 @@ async function openAdmin() {
   $('adminList').innerHTML = '<p class="sub">Carregando…</p>';
   try {
     const { users } = await adminCall({ action: 'list' });
+    const { data: profs } = await sb.from('profiles').select('id,fin_gestao');
+    const finMap = {}; (profs || []).forEach(p => { finMap[p.id] = p.fin_gestao; });
+    users.forEach(u => { u.fin_gestao = !!finMap[u.id]; });
     renderAdminList(users);
   } catch (e) {
     $('adminErr').textContent = e.message;
@@ -341,6 +344,7 @@ function renderAdminList(users) {
             <label style="margin-right:8px"><input type="checkbox" class="adm-view" data-app="${app}" ${a.can_view ? 'checked' : ''}> ver</label>
             <label><input type="checkbox" class="adm-edit" data-app="${app}" ${a.can_edit ? 'checked' : ''}> editar</label>
           </span>`; }).join('')}
+        <label style="font-size:13px"><input type="checkbox" class="adm-fin" ${u.fin_gestao ? 'checked' : ''}> 🔒 financeiro (gestão)</label>
         <button class="btn primary adm-save">Salvar acessos</button>
       </div>
     </div>`).join('');
@@ -366,6 +370,10 @@ function renderAdminList(users) {
       if (p.length < 8) { alert('Mínimo 8 caracteres.'); return; }
       try { await adminCall({ action: 'reset-password', userId: uid, password: p }); alert('Senha resetada.'); }
       catch (err) { alert(err.message); }
+    });
+    card.querySelector('.adm-fin')?.addEventListener('change', async (e) => {
+      const { error } = await sb.from('profiles').update({ fin_gestao: e.target.checked }).eq('id', uid);
+      if (error) { alert(error.message); e.target.checked = !e.target.checked; }
     });
     card.querySelector('.adm-del').addEventListener('click', async () => {
       if (!confirm('Excluir este usuário? Não dá pra desfazer.')) return;
