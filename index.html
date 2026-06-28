@@ -58,6 +58,21 @@
   .err{color:var(--risk);font-size:13px;min-height:18px;margin:4px 0 10px}
   .hidden{display:none!important}
   .center{text-align:center;color:var(--muted);font-size:14px;padding:60px}
+  /* gestão de usuários */
+  .adm-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
+  .adm-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .adm-id{flex:1;min-width:200px}
+  .adm-nome{font-size:15px;font-weight:600;padding:7px 9px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:300px;font-family:inherit}
+  .adm-nome:focus{outline:none;border-color:var(--ok)}
+  .adm-email{font-size:12px;color:var(--muted);margin-top:3px}
+  .adm-role{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;background:#fff}
+  .adm-actions{display:flex;gap:8px}
+  .adm-acessos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px 20px;margin:14px 0;padding-top:14px;border-top:1px solid var(--line)}
+  .adm-acc-row{display:flex;align-items:center;gap:14px;font-size:13px}
+  .adm-acc-nome{width:130px;font-weight:500;color:var(--ink)}
+  .adm-acc-row label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--muted)}
+  .adm-save-row{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:4px}
+  .adm-status{font-size:13px}
 </style>
 </head>
 <body>
@@ -289,6 +304,7 @@ $('pwdSave').addEventListener('click', async () => {
 // ============ PAINEL DE USUÁRIOS (admin → Edge Function) ============
 const FN_URL = SB_URL + '/functions/v1/admin-users';
 const ADMIN_APPS = ['viabilidade', 'orcamento', 'gestao', 'propostas'];
+const APP_LABEL = { viabilidade: 'Viabilidade', orcamento: 'Orçamento', gestao: 'Gestão', propostas: 'Propostas' };
 
 async function adminCall(payload) {
   const { data: { session } } = await sb.auth.getSession();
@@ -328,42 +344,59 @@ function accFor(user, app) {
 function renderAdminList(users) {
   users.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   $('adminList').innerHTML = users.map(u => `
-    <div class="app" style="margin-bottom:12px;cursor:default" data-uid="${u.id}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <div><b>${u.nome || u.email}</b><div class="sub" style="font-size:12px">${u.email}</div></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select class="adm-role" style="padding:6px;border:1px solid var(--line);border-radius:8px">
-            ${['admin', 'gestor', 'viewer'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
-          <button class="btn adm-pwd">Resetar senha</button>
-          <button class="btn adm-del">Excluir</button>
+    <div class="adm-card" data-uid="${u.id}">
+      <div class="adm-top">
+        <div class="adm-id">
+          <input class="adm-nome" value="${(u.nome || '').replace(/"/g, '&quot;')}" placeholder="Nome do usuário">
+          <div class="adm-email">${u.email}</div>
+        </div>
+        <select class="adm-role" title="Papel">
+          ${['admin', 'gestor', 'viewer'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+        <div class="adm-actions">
+          <button class="btn adm-pwd" title="Resetar senha">🔑 Senha</button>
+          <button class="btn adm-del" title="Excluir usuário">🗑 Excluir</button>
         </div>
       </div>
-      <div style="display:flex;gap:20px;margin-top:12px;flex-wrap:wrap;align-items:center">
+      <div class="adm-acessos">
         ${ADMIN_APPS.map(app => { const a = accFor(u, app); return `
-          <span style="font-size:13px"><b style="display:inline-block;width:82px">${app}</b>
-            <label style="margin-right:8px"><input type="checkbox" class="adm-view" data-app="${app}" ${a.can_view ? 'checked' : ''}> ver</label>
+          <div class="adm-acc-row"><span class="adm-acc-nome">${APP_LABEL[app] || app}</span>
+            <label><input type="checkbox" class="adm-view" data-app="${app}" ${a.can_view ? 'checked' : ''}> ver</label>
             <label><input type="checkbox" class="adm-edit" data-app="${app}" ${a.can_edit ? 'checked' : ''}> editar</label>
-          </span>`; }).join('')}
-        <label style="font-size:13px"><input type="checkbox" class="adm-fin" ${u.fin_gestao ? 'checked' : ''}> 🔒 financeiro (gestão)</label>
-        <button class="btn primary adm-save">Salvar acessos</button>
+          </div>`; }).join('')}
+        <div class="adm-acc-row"><span class="adm-acc-nome">🔒 Docs financeiros</span>
+          <label><input type="checkbox" class="adm-fin" ${u.fin_gestao ? 'checked' : ''}> liberar (gestão)</label>
+        </div>
       </div>
+      <div class="adm-save-row"><span class="adm-status"></span><button class="btn primary adm-save">Salvar</button></div>
     </div>`).join('');
 
   $('adminList').querySelectorAll('[data-uid]').forEach(card => {
     const uid = card.dataset.uid;
-    card.querySelector('.adm-role').addEventListener('change', async (e) => {
-      try { await adminCall({ action: 'set-role', userId: uid, role: e.target.value }); }
-      catch (err) { alert(err.message); }
-    });
     card.querySelector('.adm-save').addEventListener('click', async () => {
-      const access = ADMIN_APPS.map(app => ({
-        app,
-        can_view: card.querySelector(`.adm-view[data-app="${app}"]`).checked,
-        can_edit: card.querySelector(`.adm-edit[data-app="${app}"]`).checked,
-      })).filter(a => a.can_view || a.can_edit);
-      try { await adminCall({ action: 'set-access', userId: uid, access }); alert('Acessos salvos.'); }
-      catch (err) { alert(err.message); }
+      const btn = card.querySelector('.adm-save');
+      const status = card.querySelector('.adm-status');
+      btn.disabled = true; btn.textContent = 'Salvando…'; status.textContent = '';
+      try {
+        const nome = card.querySelector('.adm-nome').value.trim();
+        const role = card.querySelector('.adm-role').value;
+        const fin = card.querySelector('.adm-fin').checked;
+        const access = ADMIN_APPS.map(app => ({
+          app,
+          can_view: card.querySelector(`.adm-view[data-app="${app}"]`).checked,
+          can_edit: card.querySelector(`.adm-edit[data-app="${app}"]`).checked,
+        })).filter(a => a.can_view || a.can_edit);
+        // nome + financeiro direto em profiles (RLS admin); papel + acessos via Edge Function
+        const { error } = await sb.from('profiles').update({ nome, fin_gestao: fin }).eq('id', uid);
+        if (error) throw new Error(error.message);
+        await adminCall({ action: 'set-role', userId: uid, role });
+        await adminCall({ action: 'set-access', userId: uid, access });
+        status.textContent = '✓ Salvo'; status.style.color = 'var(--ok)';
+      } catch (err) {
+        status.textContent = err.message; status.style.color = 'var(--risk)';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
     });
     card.querySelector('.adm-pwd').addEventListener('click', async () => {
       const p = prompt('Nova senha provisória (mín. 8 caracteres):', 'Sopra@2026');
@@ -371,10 +404,6 @@ function renderAdminList(users) {
       if (p.length < 8) { alert('Mínimo 8 caracteres.'); return; }
       try { await adminCall({ action: 'reset-password', userId: uid, password: p }); alert('Senha resetada.'); }
       catch (err) { alert(err.message); }
-    });
-    card.querySelector('.adm-fin')?.addEventListener('change', async (e) => {
-      const { error } = await sb.from('profiles').update({ fin_gestao: e.target.checked }).eq('id', uid);
-      if (error) { alert(error.message); e.target.checked = !e.target.checked; }
     });
     card.querySelector('.adm-del').addEventListener('click', async () => {
       if (!confirm('Excluir este usuário? Não dá pra desfazer.')) return;
