@@ -67,9 +67,10 @@
   .adm-email{font-size:12px;color:var(--muted);margin-top:3px}
   .adm-role{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;background:#fff}
   .adm-actions{display:flex;gap:8px}
-  .adm-acessos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px 20px;margin:14px 0;padding-top:14px;border-top:1px solid var(--line)}
+  .adm-acessos{display:flex;flex-direction:column;gap:8px;margin:14px 0;padding-top:14px;border-top:1px solid var(--line);max-width:520px}
   .adm-acc-row{display:flex;align-items:center;gap:14px;font-size:13px}
   .adm-acc-nome{width:130px;font-weight:500;color:var(--ink)}
+  .adm-prop{padding:5px 8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;background:#fff;font-size:13px}
   .adm-acc-row label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--muted)}
   .adm-save-row{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:4px}
   .adm-status{font-size:13px}
@@ -359,11 +360,22 @@ function renderAdminList(users) {
         </div>
       </div>
       <div class="adm-acessos">
-        ${ADMIN_APPS.map(app => { const a = accFor(u, app); return `
-          <div class="adm-acc-row"><span class="adm-acc-nome">${APP_LABEL[app] || app}</span>
+        ${ADMIN_APPS.map(app => {
+          const a = accFor(u, app);
+          if (app === 'propostas') {
+            const val = a.can_edit ? 'gestor' : (a.can_view ? 'vendedor' : '');
+            return `<div class="adm-acc-row"><span class="adm-acc-nome">${APP_LABEL[app] || app}</span>
+              <select class="adm-prop" data-app="propostas">
+                <option value="" ${val === '' ? 'selected' : ''}>Sem acesso</option>
+                <option value="vendedor" ${val === 'vendedor' ? 'selected' : ''}>Vendedor (só inserir)</option>
+                <option value="gestor" ${val === 'gestor' ? 'selected' : ''}>Gestor (alterar tudo)</option>
+              </select></div>`;
+          }
+          return `<div class="adm-acc-row"><span class="adm-acc-nome">${APP_LABEL[app] || app}</span>
             <label><input type="checkbox" class="adm-view" data-app="${app}" ${a.can_view ? 'checked' : ''}> ver</label>
             <label><input type="checkbox" class="adm-edit" data-app="${app}" ${a.can_edit ? 'checked' : ''}> editar</label>
-          </div>`; }).join('')}
+          </div>`;
+        }).join('')}
         <div class="adm-acc-row"><span class="adm-acc-nome">🔒 Docs financeiros</span>
           <label><input type="checkbox" class="adm-fin" ${u.fin_gestao ? 'checked' : ''}> liberar (gestão)</label>
         </div>
@@ -381,11 +393,18 @@ function renderAdminList(users) {
         const nome = card.querySelector('.adm-nome').value.trim();
         const role = card.querySelector('.adm-role').value;
         const fin = card.querySelector('.adm-fin').checked;
-        const access = ADMIN_APPS.map(app => ({
-          app,
-          can_view: card.querySelector(`.adm-view[data-app="${app}"]`).checked,
-          can_edit: card.querySelector(`.adm-edit[data-app="${app}"]`).checked,
-        })).filter(a => a.can_view || a.can_edit);
+        const access = [];
+        ADMIN_APPS.forEach(app => {
+          if (app === 'propostas') {
+            const v = card.querySelector('.adm-prop')?.value;
+            if (v === 'gestor') access.push({ app, can_view: true, can_edit: true });
+            else if (v === 'vendedor') access.push({ app, can_view: true, can_edit: false });
+            return;
+          }
+          const can_view = card.querySelector(`.adm-view[data-app="${app}"]`).checked;
+          const can_edit = card.querySelector(`.adm-edit[data-app="${app}"]`).checked;
+          if (can_view || can_edit) access.push({ app, can_view, can_edit });
+        });
         // nome + financeiro direto em profiles (RLS admin); papel + acessos via Edge Function
         const { error } = await sb.from('profiles').update({ nome, fin_gestao: fin }).eq('id', uid);
         if (error) throw new Error(error.message);
