@@ -232,6 +232,7 @@ const APPS = [
   { key:'viabilidade', ico:'🏗️', nome:'Viabilidade',  desc:'Estudo de viabilidade econômica de empreendimentos.', path:'https://rmichelon79.github.io/viabilidade/' },
   { key:'orcamento',   ico:'💰', nome:'Orçamento',     desc:'Planejamento orçamentário multi-empreendimento.',     path:'https://rmichelon79.github.io/orcamento-sopra/' },
   { key:'gestao',      ico:'🎯', nome:'Gestão',        desc:'Estratégia, OKRs, KPIs e cadências.',                 path:'https://rmichelon79.github.io/sopra-gestao/' },
+  { key:'propostas',   ico:'🤝', nome:'Propostas',     desc:'Configurador de propostas de venda com VPL e regras.', path:'https://rmichelon79.github.io/sopra-propostas/' },
 ];
 
 const sb = supabase.createClient(SB_URL, SB_KEY);
@@ -287,7 +288,7 @@ $('pwdSave').addEventListener('click', async () => {
 
 // ============ PAINEL DE USUÁRIOS (admin → Edge Function) ============
 const FN_URL = SB_URL + '/functions/v1/admin-users';
-const ADMIN_APPS = ['viabilidade', 'orcamento', 'gestao'];
+const ADMIN_APPS = ['viabilidade', 'orcamento', 'gestao', 'propostas'];
 
 async function adminCall(payload) {
   const { data: { session } } = await sb.auth.getSession();
@@ -396,6 +397,7 @@ $('nu-criar').addEventListener('click', async () => {
     { app: 'gestao', can_view: true, can_edit: true },
     { app: 'viabilidade', can_view: true, can_edit: true },
     { app: 'orcamento', can_view: true, can_edit: false },
+    { app: 'propostas', can_view: true, can_edit: true },
   ];
   try {
     await adminCall({ action: 'create', email, nome, password, role, access });
