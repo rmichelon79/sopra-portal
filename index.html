@@ -483,27 +483,37 @@ async function openEmp() {
 function renderEmpList(emps) {
   const optsFor = (cur) => EMP_STATUS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
   $('empList').innerHTML = emps.map(e => `
-    <div class="app" style="margin-bottom:10px;cursor:default" data-eid="${e.id}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <div><b>${e.codigo}</b> — ${e.nome}</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="font-size:12px;color:var(--muted)">Ano-base
-            <input class="emp-ano" type="number" value="${e.ano_base ?? 2026}" style="width:72px;padding:5px;border:1px solid var(--line);border-radius:6px;margin-left:4px"></label>
-          <select class="emp-status" style="padding:6px;border:1px solid var(--line);border-radius:8px">${optsFor(e.status)}</select>
-          <button class="btn primary emp-save">Salvar</button>
-          <button class="btn emp-del">Excluir</button>
-        </div>
+    <div class="app" style="margin-bottom:10px;cursor:default" data-eid="${e.id}" data-cod="${(e.codigo || '').replace(/"/g, '&quot;')}">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--muted)">Código
+          <input class="emp-cod" value="${(e.codigo || '').replace(/"/g, '&quot;')}" style="width:96px;text-transform:uppercase;display:block;margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:6px;font-family:inherit"></label>
+        <label style="font-size:12px;color:var(--muted);flex:1;min-width:160px">Nome
+          <input class="emp-nome" value="${(e.nome || '').replace(/"/g, '&quot;')}" style="width:100%;display:block;margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:6px;font-family:inherit"></label>
+        <label style="font-size:12px;color:var(--muted)">Ano-base
+          <input class="emp-ano" type="number" value="${e.ano_base ?? 2026}" style="width:84px;display:block;margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:6px"></label>
+        <label style="font-size:12px;color:var(--muted)">Status
+          <select class="emp-status" style="display:block;margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:8px">${optsFor(e.status)}</select></label>
+        <button class="btn primary emp-save">Salvar</button>
+        <button class="btn emp-del">Excluir</button>
       </div>
+      <div class="emp-msg" style="font-size:12px;margin-top:6px"></div>
     </div>`).join('');
 
   $('empList').querySelectorAll('[data-eid]').forEach(card => {
     const id = card.dataset.eid;
     card.querySelector('.emp-save').addEventListener('click', async () => {
+      const codigo = card.querySelector('.emp-cod').value.trim().toUpperCase();
+      const nome = card.querySelector('.emp-nome').value.trim();
       const status = card.querySelector('.emp-status').value;
       const ano_base = Number(card.querySelector('.emp-ano').value) || null;
-      const { error } = await sb.from('empreendimentos').update({ status, ano_base }).eq('id', id);
-      if (error) { alert(error.message); return; }
-      alert('Salvo.');
+      const msg = card.querySelector('.emp-msg');
+      if (!codigo || !nome) { msg.textContent = 'Código e nome são obrigatórios.'; msg.style.color = 'var(--risk)'; return; }
+      if (codigo !== card.dataset.cod &&
+          !confirm('Mudar o CÓDIGO pode afetar referências na Gestão (KPIs e cronograma usam o código). Continuar?')) return;
+      const { error } = await sb.from('empreendimentos').update({ codigo, nome, status, ano_base }).eq('id', id);
+      if (error) { msg.textContent = error.message; msg.style.color = 'var(--risk)'; return; }
+      card.dataset.cod = codigo;
+      msg.textContent = '✓ Salvo'; msg.style.color = 'var(--ok)';
     });
     card.querySelector('.emp-del').addEventListener('click', async () => {
       if (!confirm('Excluir este empreendimento? Apaga também seus orçamentos e estudos.')) return;
