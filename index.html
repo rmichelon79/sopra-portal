@@ -330,7 +330,10 @@ async function openAdmin() {
     const { users } = await adminCall({ action: 'list' });
     const { data: profs } = await sb.from('profiles').select('id,fin_gestao');
     const finMap = {}; (profs || []).forEach(p => { finMap[p.id] = p.fin_gestao; });
-    users.forEach(u => { u.fin_gestao = !!finMap[u.id]; });
+    // Lê app_access direto (inclui propostas e qualquer app, sem depender da Edge Function)
+    const { data: accAll } = await sb.from('app_access').select('user_id,app,can_view,can_edit');
+    const accMap = {}; (accAll || []).forEach(a => { (accMap[a.user_id] = accMap[a.user_id] || []).push(a); });
+    users.forEach(u => { u.fin_gestao = !!finMap[u.id]; u.access = accMap[u.id] || []; });
     renderAdminList(users);
   } catch (e) {
     $('adminErr').textContent = e.message;
@@ -409,7 +412,13 @@ function renderAdminList(users) {
         const { error } = await sb.from('profiles').update({ nome, fin_gestao: fin }).eq('id', uid);
         if (error) throw new Error(error.message);
         await adminCall({ action: 'set-role', userId: uid, role });
-        await adminCall({ action: 'set-access', userId: uid, access });
+        // grava app_access direto (RLS admin) — cobre propostas e qualquer app
+        const { error: eAcc } = await sb.from('app_access').delete().eq('user_id', uid);
+        if (eAcc) throw new Error(eAcc.message);
+        if (access.length) {
+          const { error: eIns } = await sb.from('app_access').insert(access.map((a) => ({ user_id: uid, ...a })));
+          if (eIns) throw new Error(eIns.message);
+        }
         status.textContent = '✓ Salvo'; status.style.color = 'var(--ok)';
       } catch (err) {
         status.textContent = err.message; status.style.color = 'var(--risk)';
