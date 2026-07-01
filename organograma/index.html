@@ -103,7 +103,7 @@
     <button class="btn edit-only" id="btn-left" disabled title="Mover para a esquerda">◀</button>
     <button class="btn edit-only" id="btn-right" disabled title="Mover para a direita">▶</button>
     <span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>
-    <button class="btn" id="btn-pdf">↓ Exportar PDF</button>
+    <button class="btn" id="btn-png">↓ Exportar PNG</button>
     <span id="hint" style="font-size:12px;color:var(--muted)">Clique num cargo para selecioná-lo.</span>
   </div>
   <div class="canvas"><div id="chart"></div></div>
@@ -360,7 +360,75 @@ async function moverSel(dir) {
 }
 $('btn-left').addEventListener('click', () => moverSel(-1));
 $('btn-right').addEventListener('click', () => moverSel(1));
-$('btn-pdf').addEventListener('click', () => { selId = null; render(); window.print(); });
+// ── Exportar PNG desenhando direto no canvas (sem dependência, capta o mapa inteiro) ──
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function ellipsize(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let s = text;
+  while (s.length && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+function drawClamp(ctx, text, cx, y, maxW, lh, maxLines) {
+  const words = String(text).split(/\s+/); const lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width <= maxW || !cur) cur = test; else { lines.push(cur); cur = w; } }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxW); }
+  lines.forEach((ln, i) => ctx.fillText(ln, cx, y + i * lh));
+  return y + lines.length * lh;
+}
+function drawCard(ctx, n, x, y, img) {
+  const cx = x + NODE_W / 2;
+  roundRect(ctx, x, y, NODE_W, NODE_H, 12); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.strokeStyle = '#e6e1d8'; ctx.lineWidth = 1; ctx.stroke();
+  const av = 96, ay = y + 12, ar = av / 2, acy = ay + ar;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, acy, ar, 0, Math.PI * 2); ctx.closePath();
+  ctx.fillStyle = '#f0ede6'; ctx.fill();
+  if (img) { ctx.clip(); ctx.drawImage(img, cx - ar, ay, av, av); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx, acy, ar, 0, Math.PI * 2); ctx.strokeStyle = '#e6e1d8'; ctx.lineWidth = 2; ctx.stroke();
+  if (!img) { ctx.fillStyle = '#8a857c'; ctx.font = "700 30px 'DM Sans',sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(iniciais(n.nome), cx, acy); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  let ty = ay + av + 8;
+  ctx.fillStyle = '#23211C'; ctx.font = "600 13px 'DM Sans',sans-serif";
+  ty = drawClamp(ctx, n.nome, cx, ty, NODE_W - 20, 16, 2) + 2;
+  if (n.cargo) { ctx.fillStyle = '#8a857c'; ctx.font = "400 11px 'DM Sans',sans-serif"; ctx.fillText(ellipsize(ctx, n.cargo, NODE_W - 20), cx, ty); ty += 15; }
+  if (n.area) { ctx.fillStyle = '#1D9E75'; ctx.font = "600 10px 'DM Sans',sans-serif"; ctx.fillText(ellipsize(ctx, n.area.toUpperCase(), NODE_W - 20), cx, ty + 1); }
+}
+async function exportarPNG() {
+  if (!NODES.length) { alert('Nada para exportar.'); return; }
+  const btn = $('btn-png'); const t = btn.textContent; btn.textContent = 'Gerando…'; btn.disabled = true;
+  try {
+    try { await document.fonts.ready; } catch (_) {}
+    const pos = layout();
+    let maxX = 0, maxY = 0;
+    Object.values(pos).forEach(p => { if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; });
+    const W = maxX + NODE_W, H = maxY + NODE_H, pad = 28, scale = 2;
+    const cv = document.createElement('canvas');
+    cv.width = (W + pad * 2) * scale; cv.height = (H + pad * 2) * scale;
+    const ctx = cv.getContext('2d');
+    ctx.scale(scale, scale); ctx.translate(pad, pad);
+    ctx.fillStyle = '#F7F5F0'; ctx.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
+    ctx.strokeStyle = '#c9c3b6'; ctx.lineWidth = 2;
+    NODES.forEach(n => {
+      if (!n.parent_id || !pos[n.parent_id] || !pos[n.id]) return;
+      const p = pos[n.parent_id], c = pos[n.id];
+      const pcx = p.x + NODE_W / 2, pby = p.y + NODE_H, ccx = c.x + NODE_W / 2, cty = c.y, midY = pby + GAP_Y / 2;
+      ctx.beginPath(); ctx.moveTo(pcx, pby); ctx.lineTo(pcx, midY); ctx.lineTo(ccx, midY); ctx.lineTo(ccx, cty); ctx.stroke();
+    });
+    const imgs = {};
+    await Promise.all(NODES.filter(n => n.foto).map(n => new Promise(r => {
+      const im = new Image(); im.onload = () => { imgs[n.id] = im; r(); }; im.onerror = () => r(); im.src = n.foto;
+    })));
+    NODES.forEach(n => { const p = pos[n.id]; if (p) drawCard(ctx, n, p.x, p.y, imgs[n.id]); });
+    const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = 'organograma.png'; a.click();
+  } catch (e) { alert('Falha ao gerar PNG: ' + (e.message || e)); }
+  finally { btn.textContent = t; btn.disabled = false; }
+}
+$('btn-png').addEventListener('click', exportarPNG);
 
 // ── BOOT ──
 (async () => {
