@@ -249,6 +249,7 @@ const APPS = [
   { key:'orcamento',   ico:'💰', nome:'Orçamento',     desc:'Planejamento orçamentário multi-empreendimento.',     path:'https://rmichelon79.github.io/orcamento-sopra/' },
   { key:'gestao',      ico:'🎯', nome:'Gestão',        desc:'Estratégia, OKRs, KPIs e cadências.',                 path:'https://rmichelon79.github.io/sopra-gestao/' },
   { key:'propostas',   ico:'🤝', nome:'Propostas',     desc:'Configurador de propostas de venda com VPL e regras.', path:'https://rmichelon79.github.io/sopra-propostas/' },
+  { key:'organograma', ico:'🗂️', nome:'Organograma',   desc:'Estrutura organizacional da empresa.',                path:'https://rmichelon79.github.io/sopra-portal/organograma/' },
 ];
 
 const sb = supabase.createClient(SB_URL, SB_KEY);
@@ -304,8 +305,8 @@ $('pwdSave').addEventListener('click', async () => {
 
 // ============ PAINEL DE USUÁRIOS (admin → Edge Function) ============
 const FN_URL = SB_URL + '/functions/v1/admin-users';
-const ADMIN_APPS = ['viabilidade', 'orcamento', 'gestao', 'propostas'];
-const APP_LABEL = { viabilidade: 'Viabilidade', orcamento: 'Orçamento', gestao: 'Gestão', propostas: 'Propostas' };
+const ADMIN_APPS = ['viabilidade', 'orcamento', 'gestao', 'propostas', 'organograma'];
+const APP_LABEL = { viabilidade: 'Viabilidade', orcamento: 'Orçamento', gestao: 'Gestão', propostas: 'Propostas', organograma: 'Organograma' };
 
 async function adminCall(payload) {
   const { data: { session } } = await sb.auth.getSession();

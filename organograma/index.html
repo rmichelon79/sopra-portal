@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organograma — Sopra</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#F7F5F0;--ink:#23211C;--muted:#8a857c;--line:#e6e1d8;--ok:#1D9E75;--risk:#E24B4A;--card:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .serif{font-family:'DM Serif Display',serif}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;font-family:inherit;font-size:14px;color:var(--ink);transition:.15s}
+  .btn:hover{border-color:var(--ink)}
+  .btn.primary{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .btn.primary:hover{filter:brightness(.95)}
+  .btn.danger{color:var(--risk);border-color:var(--risk)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .hidden{display:none!important}
+  /* login */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .auth{width:100%;max-width:380px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:34px}
+  .auth h2{margin:0 0 4px;font-size:24px}
+  .auth .sub{margin:0 0 22px;font-size:14px;color:var(--muted)}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .field input,.field select{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;background:var(--bg)}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--ok)}
+  .err{color:var(--risk);font-size:13px;min-height:18px;margin:4px 0 10px}
+  /* app */
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+  header .brand{display:flex;align-items:center;gap:9px;font-weight:700}
+  header .dot{width:12px;height:12px;border-radius:3px;background:var(--ok)}
+  .toolbar{display:flex;gap:8px;align-items:center;padding:12px 22px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:#fff}
+  .who{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+  .canvas{padding:30px 20px 60px;overflow:auto}
+  /* org tree (CSS puro) */
+  .tree{display:inline-block;min-width:100%}
+  .tree ul{padding-top:22px;position:relative;display:flex;justify-content:center;margin:0}
+  .tree li{list-style:none;text-align:center;position:relative;padding:22px 10px 0}
+  .tree li::before,.tree li::after{content:'';position:absolute;top:0;right:50%;border-top:2px solid var(--line);width:50%;height:22px}
+  .tree li::after{right:auto;left:50%;border-left:2px solid var(--line)}
+  .tree li:only-child::before,.tree li:only-child::after{display:none}
+  .tree li:only-child{padding-top:0}
+  .tree li:first-child::before,.tree li:last-child::after{border:0 none}
+  .tree li:last-child::before{border-right:2px solid var(--line);border-radius:0 6px 0 0}
+  .tree li:first-child::after{border-radius:6px 0 0 0}
+  .tree ul ul::before{content:'';position:absolute;top:0;left:50%;border-left:2px solid var(--line);width:0;height:22px}
+  .node{display:inline-block;border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px 14px;min-width:130px;cursor:pointer;transition:.12s;text-align:center}
+  .node:hover{border-color:var(--ink)}
+  .node.sel{border-color:var(--ok);box-shadow:0 0 0 3px rgba(29,158,117,.22)}
+  .node .n{font-weight:600;font-size:13px;line-height:1.2}
+  .node .c{font-size:11px;color:var(--muted);margin-top:1px}
+  .node .a{font-size:10px;color:var(--ok);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+  .empty{text-align:center;color:var(--muted);padding:70px 20px}
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px}
+  .modal{background:#fff;border-radius:16px;padding:26px;width:100%;max-width:420px;border:1px solid var(--line)}
+  .modal h3{margin:0 0 16px;font-size:20px}
+  @media print{
+    header,.toolbar,.no-print{display:none!important}
+    .canvas{padding:0;overflow:visible}
+    body{background:#fff}
+    .node{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="authView" class="auth-wrap hidden">
+  <form class="auth" id="loginForm">
+    <div class="dot" style="width:14px;height:14px;border-radius:4px;background:var(--ok);margin-bottom:16px"></div>
+    <h2 class="serif">Organograma</h2>
+    <p class="sub">Entre com sua conta corporativa.</p>
+    <div class="field"><label>E-mail</label><input type="email" id="email" autocomplete="email" required></div>
+    <div class="field"><label>Senha</label><input type="password" id="password" autocomplete="current-password" required></div>
+    <div class="err" id="loginErr"></div>
+    <button class="btn primary" type="submit" style="width:100%" id="loginBtn">Entrar</button>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="appView" class="hidden">
+  <header>
+    <div class="brand"><span class="dot"></span><span class="serif" style="font-size:18px">Organograma</span></div>
+    <div class="who">
+      <span id="whoName"></span>
+      <button class="btn" onclick="location.href='https://rmichelon79.github.io/sopra-portal/'" title="Voltar ao Portal (continua logado)">⌂ Portal</button>
+      <button class="btn" id="logoutBtn">Sair</button>
+    </div>
+  </header>
+  <div class="toolbar">
+    <button class="btn primary edit-only" id="btn-add-topo">+ Cargo (topo)</button>
+    <button class="btn edit-only" id="btn-add-sub" disabled>+ Subordinado</button>
+    <button class="btn edit-only" id="btn-edit" disabled>Editar</button>
+    <button class="btn danger edit-only" id="btn-del" disabled>Excluir</button>
+    <span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>
+    <button class="btn" id="btn-pdf">↓ Exportar PDF</button>
+    <span id="hint" style="font-size:12px;color:var(--muted)">Clique num cargo para selecioná-lo.</span>
+  </div>
+  <div class="canvas"><div id="chart"></div></div>
+</div>
+
+<div id="bootView" class="empty">Carregando…</div>
+
+<!-- MODAL -->
+<div id="modalBg" class="modal-bg hidden">
+  <div class="modal">
+    <h3 id="modalTitle">Novo cargo</h3>
+    <div class="field"><label>Nome</label><input id="m-nome" placeholder="Nome da pessoa"></div>
+    <div class="field"><label>Cargo</label><input id="m-cargo" placeholder="Ex: Diretor Comercial"></div>
+    <div class="field"><label>Área</label><input id="m-area" placeholder="Ex: Comercial"></div>
+    <div class="field"><label>Reporta a</label><select id="m-parent"></select></div>
+    <div class="err" id="m-err"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" id="m-cancel">Cancelar</button>
+      <button class="btn primary" id="m-save">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://cgnuelmiacweybmvlbcm.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnbnVlbG1pYWN3ZXlibXZsYmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDM0ODMsImV4cCI6MjA5Mjc3OTQ4M30.l02F-jt6CSgZf7wd5Dz0IY6jB9gCLzM6Iny7EsZLNSw';
+const SBC = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const show = v => { ['authView', 'appView', 'bootView'].forEach(x => $(x).classList.add('hidden')); $(v).classList.remove('hidden'); };
+
+let SESSION = null;
+let NODES = [];
+let selId = null;
+let modalMode = null; // 'novo' | 'novoSub' | 'editar'
+
+// ── AUTH ──
+async function loadSession(user) {
+  try {
+    const [{ data: prof }, { data: acc }] = await Promise.all([
+      SBC.from('profiles').select('nome,role').eq('id', user.id).maybeSingle(),
+      SBC.from('app_access').select('can_view,can_edit').eq('app', 'organograma').maybeSingle(),
+    ]);
+    const role = (prof && prof.role) || 'viewer';
+    const isAdmin = role === 'admin';
+    if (!(isAdmin || (acc && acc.can_view === true))) return false;
+    SESSION = { nome: (prof && prof.nome) || user.email, role, canEdit: isAdmin || (acc && acc.can_edit === true) };
+    return true;
+  } catch (e) { console.warn('loadSession', e); return false; }
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('loginErr').textContent = ''; $('loginBtn').textContent = 'Entrando…'; $('loginBtn').disabled = true;
+  const { data, error } = await SBC.auth.signInWithPassword({ email: $('email').value.trim().toLowerCase(), password: $('password').value });
+  $('loginBtn').textContent = 'Entrar'; $('loginBtn').disabled = false;
+  if (error) { $('loginErr').textContent = 'E-mail ou senha incorretos.'; return; }
+  if (!(await loadSession(data.user))) { $('loginErr').textContent = 'Você não tem acesso ao Organograma.'; await SBC.auth.signOut(); return; }
+  startApp();
+});
+$('logoutBtn').addEventListener('click', async () => { await SBC.auth.signOut(); location.href = 'https://rmichelon79.github.io/sopra-portal/'; });
+
+async function startApp() {
+  $('whoName').textContent = SESSION.nome;
+  document.querySelectorAll('.edit-only').forEach(el => { el.style.display = SESSION.canEdit ? '' : 'none'; });
+  show('appView');
+  await carregar();
+}
+
+// ── DADOS ──
+async function carregar() {
+  const { data, error } = await SBC.from('org_nodes').select('*').order('ordem').order('nome');
+  if (error) { $('chart').innerHTML = `<div class="empty">Erro: ${esc(error.message)}</div>`; return; }
+  NODES = data || [];
+  render();
+}
+
+// ── ÁRVORE ──
+function filhosDe(pid) { return NODES.filter(n => n.parent_id === pid); }
+function descendentes(id, acc = new Set()) {
+  filhosDe(id).forEach(f => { acc.add(f.id); descendentes(f.id, acc); });
+  return acc;
+}
+function nodeHtml(n) {
+  const sel = n.id === selId ? ' sel' : '';
+  return `<div class="node${sel}" data-id="${n.id}">
+    <div class="n">${esc(n.nome)}</div>
+    ${n.cargo ? `<div class="c">${esc(n.cargo)}</div>` : ''}
+    ${n.area ? `<div class="a">${esc(n.area)}</div>` : ''}
+  </div>`;
+}
+function subtree(n) {
+  const filhos = filhosDe(n.id);
+  return `<li>${nodeHtml(n)}${filhos.length ? `<ul>${filhos.map(subtree).join('')}</ul>` : ''}</li>`;
+}
+function render() {
+  const raizes = filhosDe(null);
+  if (!NODES.length) {
+    $('chart').innerHTML = `<div class="empty">Nenhum cargo ainda.${SESSION.canEdit ? ' Clique em <b>+ Cargo (topo)</b> para começar.' : ''}</div>`;
+  } else {
+    $('chart').innerHTML = `<div class="tree"><ul>${raizes.map(subtree).join('')}</ul></div>`;
+  }
+  // seleção + ações
+  $('chart').querySelectorAll('.node').forEach(el => {
+    el.addEventListener('click', () => { selId = el.dataset.id; render(); });
+  });
+  const temSel = !!selId && NODES.some(n => n.id === selId);
+  if (!temSel) selId = null;
+  ['btn-add-sub', 'btn-edit', 'btn-del'].forEach(b => { const el = $(b); if (el) el.disabled = !temSel; });
+}
+
+// ── MODAL ──
+function opcoesParent(excluir = new Set()) {
+  const opts = ['<option value="">— (topo, sem superior)</option>'];
+  NODES.filter(n => !excluir.has(n.id)).forEach(n => {
+    opts.push(`<option value="${n.id}">${esc(n.nome)}${n.cargo ? ' — ' + esc(n.cargo) : ''}</option>`);
+  });
+  return opts.join('');
+}
+function abrirModal(mode) {
+  modalMode = mode;
+  $('m-err').textContent = '';
+  const sel = NODES.find(n => n.id === selId);
+  if (mode === 'editar') {
+    $('modalTitle').textContent = 'Editar cargo';
+    const excl = descendentes(sel.id); excl.add(sel.id); // evita ciclo
+    $('m-parent').innerHTML = opcoesParent(excl);
+    $('m-nome').value = sel.nome || ''; $('m-cargo').value = sel.cargo || ''; $('m-area').value = sel.area || '';
+    $('m-parent').value = sel.parent_id || '';
+  } else {
+    $('modalTitle').textContent = mode === 'novoSub' ? `Novo subordinado de ${sel.nome}` : 'Novo cargo';
+    $('m-parent').innerHTML = opcoesParent();
+    $('m-nome').value = ''; $('m-cargo').value = ''; $('m-area').value = '';
+    $('m-parent').value = mode === 'novoSub' ? sel.id : '';
+  }
+  $('modalBg').classList.remove('hidden');
+  $('m-nome').focus();
+}
+$('m-cancel').addEventListener('click', () => $('modalBg').classList.add('hidden'));
+$('m-save').addEventListener('click', async () => {
+  const nome = $('m-nome').value.trim();
+  if (!nome) { $('m-err').textContent = 'Nome é obrigatório.'; return; }
+  const payload = { nome, cargo: $('m-cargo').value.trim() || null, area: $('m-area').value.trim() || null, parent_id: $('m-parent').value || null };
+  $('m-save').disabled = true; $('m-save').textContent = 'Salvando…';
+  let error;
+  if (modalMode === 'editar') ({ error } = await SBC.from('org_nodes').update(payload).eq('id', selId));
+  else ({ error } = await SBC.from('org_nodes').insert(payload));
+  $('m-save').disabled = false; $('m-save').textContent = 'Salvar';
+  if (error) { $('m-err').textContent = error.message; return; }
+  $('modalBg').classList.add('hidden');
+  await carregar();
+});
+
+$('btn-add-topo').addEventListener('click', () => abrirModal('novo'));
+$('btn-add-sub').addEventListener('click', () => abrirModal('novoSub'));
+$('btn-edit').addEventListener('click', () => abrirModal('editar'));
+$('btn-del').addEventListener('click', async () => {
+  const sel = NODES.find(n => n.id === selId); if (!sel) return;
+  const filhos = filhosDe(sel.id);
+  const aviso = filhos.length
+    ? `Excluir "${sel.nome}"? Os ${filhos.length} subordinados diretos passam a reportar ao superior dele.`
+    : `Excluir "${sel.nome}"?`;
+  if (!confirm(aviso)) return;
+  // reparent filhos para o superior do excluído
+  if (filhos.length) {
+    const up = await SBC.from('org_nodes').update({ parent_id: sel.parent_id || null }).eq('parent_id', sel.id);
+    if (up.error) { alert(up.error.message); return; }
+  }
+  const { error } = await SBC.from('org_nodes').delete().eq('id', sel.id);
+  if (error) { alert(error.message); return; }
+  selId = null;
+  await carregar();
+});
+$('btn-pdf').addEventListener('click', () => { selId = null; render(); window.print(); });
+
+// ── BOOT ──
+(async () => {
+  const { data: { session } } = await SBC.auth.getSession();
+  if (session && session.user && await loadSession(session.user)) startApp();
+  else show('authView');
+  SBC.auth.onAuthStateChange((_e, s) => { if (!s) show('authView'); });
+})();
+</script>
+</body>
+</html>
