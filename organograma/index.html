@@ -50,6 +50,10 @@
   .node{display:inline-block;border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px 14px;min-width:130px;cursor:pointer;transition:.12s;text-align:center}
   .node:hover{border-color:var(--ink)}
   .node.sel{border-color:var(--ok);box-shadow:0 0 0 3px rgba(29,158,117,.22)}
+  .node .avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;margin:0 auto 6px;display:block;border:2px solid var(--line);background:#f0ede6}
+  .node .avatar.ph{display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--muted)}
+  .mfoto{width:52px;height:52px;border-radius:50%;object-fit:cover;border:1px solid var(--line);background:#f0ede6;flex-shrink:0}
+  .mfoto.ph{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
   .node .n{font-weight:600;font-size:13px;line-height:1.2}
   .node .c{font-size:11px;color:var(--muted);margin-top:1px}
   .node .a{font-size:10px;color:var(--ok);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
@@ -112,6 +116,14 @@
     <div class="field"><label>Nome</label><input id="m-nome" placeholder="Nome da pessoa"></div>
     <div class="field"><label>Cargo</label><input id="m-cargo" placeholder="Ex: Diretor Comercial"></div>
     <div class="field"><label>Área</label><input id="m-area" placeholder="Ex: Comercial"></div>
+    <div class="field"><label>Foto</label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <img id="m-foto-img" class="mfoto" style="display:none" alt="">
+        <div id="m-foto-ph" class="mfoto ph">sem foto</div>
+        <input type="file" id="m-foto-file" accept="image/*" style="flex:1;font-size:13px">
+        <button type="button" class="btn" id="m-foto-rm" style="display:none">Remover</button>
+      </div>
+    </div>
     <div class="field"><label>Reporta a</label><select id="m-parent"></select></div>
     <div class="err" id="m-err"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -133,6 +145,37 @@ let SESSION = null;
 let NODES = [];
 let selId = null;
 let modalMode = null; // 'novo' | 'novoSub' | 'editar'
+let mFoto = null;     // data URL da foto no modal (ou null)
+
+// Redimensiona a imagem escolhida para ~128px (base64 leve)
+function resizeImage(file, max = 128) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        res(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = rej; img.src = r.result;
+    };
+    r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+function setFotoPreview() {
+  if (mFoto) { $('m-foto-img').src = mFoto; $('m-foto-img').style.display = ''; $('m-foto-ph').style.display = 'none'; $('m-foto-rm').style.display = ''; }
+  else { $('m-foto-img').style.display = 'none'; $('m-foto-ph').style.display = ''; $('m-foto-rm').style.display = 'none'; }
+}
+$('m-foto-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { mFoto = await resizeImage(f); setFotoPreview(); }
+  catch { $('m-err').textContent = 'Não foi possível ler a imagem.'; }
+  e.target.value = '';
+});
+$('m-foto-rm').addEventListener('click', () => { mFoto = null; setFotoPreview(); });
 
 // ── AUTH ──
 async function loadSession(user) {
@@ -181,9 +224,14 @@ function descendentes(id, acc = new Set()) {
   filhosDe(id).forEach(f => { acc.add(f.id); descendentes(f.id, acc); });
   return acc;
 }
+function iniciais(nome) {
+  return (nome || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
 function nodeHtml(n) {
   const sel = n.id === selId ? ' sel' : '';
+  const av = n.foto ? `<img class="avatar" src="${n.foto}" alt="">` : `<div class="avatar ph">${esc(iniciais(n.nome))}</div>`;
   return `<div class="node${sel}" data-id="${n.id}">
+    ${av}
     <div class="n">${esc(n.nome)}</div>
     ${n.cargo ? `<div class="c">${esc(n.cargo)}</div>` : ''}
     ${n.area ? `<div class="a">${esc(n.area)}</div>` : ''}
@@ -233,6 +281,8 @@ function abrirModal(mode) {
     $('m-nome').value = ''; $('m-cargo').value = ''; $('m-area').value = '';
     $('m-parent').value = mode === 'novoSub' ? sel.id : '';
   }
+  mFoto = mode === 'editar' ? (sel.foto || null) : null;
+  setFotoPreview();
   $('modalBg').classList.remove('hidden');
   $('m-nome').focus();
 }
@@ -240,7 +290,7 @@ $('m-cancel').addEventListener('click', () => $('modalBg').classList.add('hidden
 $('m-save').addEventListener('click', async () => {
   const nome = $('m-nome').value.trim();
   if (!nome) { $('m-err').textContent = 'Nome é obrigatório.'; return; }
-  const payload = { nome, cargo: $('m-cargo').value.trim() || null, area: $('m-area').value.trim() || null, parent_id: $('m-parent').value || null };
+  const payload = { nome, cargo: $('m-cargo').value.trim() || null, area: $('m-area').value.trim() || null, parent_id: $('m-parent').value || null, foto: mFoto };
   $('m-save').disabled = true; $('m-save').textContent = 'Salvando…';
   let error;
   if (modalMode === 'editar') ({ error } = await SBC.from('org_nodes').update(payload).eq('id', selId));
