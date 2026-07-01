@@ -229,33 +229,50 @@ function descendentes(id, acc = new Set()) {
 function iniciais(nome) {
   return (nome || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
-function nodeHtml(n) {
-  const sel = n.id === selId ? ' sel' : '';
+function nodeInner(n) {
   const av = n.foto ? `<img class="avatar" src="${n.foto}" alt="">` : `<div class="avatar ph">${esc(iniciais(n.nome))}</div>`;
-  return `<div class="node${sel}" data-id="${n.id}">
-    ${av}
-    <div class="n">${esc(n.nome)}</div>
-    ${n.cargo ? `<div class="c">${esc(n.cargo)}</div>` : ''}
-    ${n.area ? `<div class="a">${esc(n.area)}</div>` : ''}
-  </div>`;
+  return `${av}<div class="n">${esc(n.nome)}</div>${n.cargo ? `<div class="c">${esc(n.cargo)}</div>` : ''}${n.area ? `<div class="a">${esc(n.area)}</div>` : ''}`;
 }
-function subtree(n) {
-  const filhos = filhosDe(n.id);
-  return `<li>${nodeHtml(n)}${filhos.length ? `<ul>${filhos.map(subtree).join('')}</ul>` : ''}</li>`;
+const byOrder = (a, b) => (a.ordem - b.ordem) || (a.nome || '').localeCompare(b.nome || '');
+const NODE_W = 172, NODE_H = 194, GAP_X = 30, GAP_Y = 56;
+// Layout tidy-tree: folhas em sequência; cada pai centralizado sobre 1º e último filho.
+function layout() {
+  const pos = {}; let leafX = 0;
+  function place(node, depth) {
+    const filhos = NODES.filter(n => n.parent_id === node.id).sort(byOrder);
+    const y = depth * (NODE_H + GAP_Y);
+    let x;
+    if (!filhos.length) { x = leafX * (NODE_W + GAP_X); leafX++; }
+    else { const xs = filhos.map(f => place(f, depth + 1)); x = (xs[0] + xs[xs.length - 1]) / 2; }
+    pos[node.id] = { x, y };
+    return x;
+  }
+  NODES.filter(n => n.parent_id === null).sort(byOrder).forEach(r => place(r, 0));
+  return pos;
 }
 function render() {
-  const raizes = filhosDe(null);
+  const chart = $('chart');
+  if (!(selId && NODES.some(n => n.id === selId))) selId = null;
   if (!NODES.length) {
-    $('chart').innerHTML = `<div class="empty">Nenhum cargo ainda.${SESSION.canEdit ? ' Clique em <b>+ Cargo (topo)</b> para começar.' : ''}</div>`;
+    chart.innerHTML = `<div class="empty">Nenhum cargo ainda.${SESSION.canEdit ? ' Clique em <b>+ Cargo (topo)</b> para começar.' : ''}</div>`;
   } else {
-    $('chart').innerHTML = `<div class="tree"><ul>${raizes.map(subtree).join('')}</ul></div>`;
+    const pos = layout();
+    let maxX = 0, maxY = 0;
+    Object.values(pos).forEach(p => { if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; });
+    const W = maxX + NODE_W, H = maxY + NODE_H;
+    let lines = '';
+    NODES.forEach(n => {
+      if (!n.parent_id || !pos[n.parent_id] || !pos[n.id]) return;
+      const p = pos[n.parent_id], c = pos[n.id];
+      const pcx = p.x + NODE_W / 2, pby = p.y + NODE_H, ccx = c.x + NODE_W / 2, cty = c.y, midY = pby + GAP_Y / 2;
+      lines += `<polyline points="${pcx},${pby} ${pcx},${midY} ${ccx},${midY} ${ccx},${cty}" fill="none" stroke="#c9c3b6" stroke-width="2"/>`;
+    });
+    const nodes = NODES.map(n => { const p = pos[n.id]; return p ? `<div class="node${n.id === selId ? ' sel' : ''}" data-id="${n.id}" style="position:absolute;left:${p.x}px;top:${p.y}px">${nodeInner(n)}</div>` : ''; }).join('');
+    chart.innerHTML = `<div style="position:relative;width:${W}px;height:${H}px;margin:0 auto">
+      <svg width="${W}" height="${H}" style="position:absolute;left:0;top:0;pointer-events:none">${lines}</svg>${nodes}</div>`;
+    chart.querySelectorAll('.node').forEach(el => el.addEventListener('click', () => { selId = el.dataset.id; render(); }));
   }
-  // seleção + ações
-  $('chart').querySelectorAll('.node').forEach(el => {
-    el.addEventListener('click', () => { selId = el.dataset.id; render(); });
-  });
   const temSel = !!selId && NODES.some(n => n.id === selId);
-  if (!temSel) selId = null;
   ['btn-add-sub', 'btn-edit', 'btn-del', 'btn-left', 'btn-right'].forEach(b => { const el = $(b); if (el) el.disabled = !temSel; });
 }
 
