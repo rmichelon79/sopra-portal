@@ -100,6 +100,8 @@
     <button class="btn edit-only" id="btn-add-sub" disabled>+ Subordinado</button>
     <button class="btn edit-only" id="btn-edit" disabled>Editar</button>
     <button class="btn danger edit-only" id="btn-del" disabled>Excluir</button>
+    <button class="btn edit-only" id="btn-left" disabled title="Mover para a esquerda">◀</button>
+    <button class="btn edit-only" id="btn-right" disabled title="Mover para a direita">▶</button>
     <span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>
     <button class="btn" id="btn-pdf">↓ Exportar PDF</button>
     <span id="hint" style="font-size:12px;color:var(--muted)">Clique num cargo para selecioná-lo.</span>
@@ -254,7 +256,7 @@ function render() {
   });
   const temSel = !!selId && NODES.some(n => n.id === selId);
   if (!temSel) selId = null;
-  ['btn-add-sub', 'btn-edit', 'btn-del'].forEach(b => { const el = $(b); if (el) el.disabled = !temSel; });
+  ['btn-add-sub', 'btn-edit', 'btn-del', 'btn-left', 'btn-right'].forEach(b => { const el = $(b); if (el) el.disabled = !temSel; });
 }
 
 // ── MODAL ──
@@ -321,6 +323,26 @@ $('btn-del').addEventListener('click', async () => {
   selId = null;
   await carregar();
 });
+// Reordena a pessoa selecionada entre os irmãos (mesmo superior)
+async function moverSel(dir) {
+  const sel = NODES.find(n => n.id === selId); if (!sel) return;
+  const byOrder = (a, b) => (a.ordem - b.ordem) || (a.nome || '').localeCompare(b.nome || '');
+  const irmaos = NODES.filter(n => n.parent_id === sel.parent_id).sort(byOrder);
+  const i = irmaos.findIndex(n => n.id === sel.id), j = i + dir;
+  if (j < 0 || j >= irmaos.length) return;
+  const arr = irmaos.slice();
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  // normaliza a ordem (0..n-1) e grava só quem mudou
+  for (let k = 0; k < arr.length; k++) {
+    if (arr[k].ordem !== k) {
+      const { error } = await SBC.from('org_nodes').update({ ordem: k }).eq('id', arr[k].id);
+      if (error) { alert(error.message); return; }
+    }
+  }
+  await carregar();
+}
+$('btn-left').addEventListener('click', () => moverSel(-1));
+$('btn-right').addEventListener('click', () => moverSel(1));
 $('btn-pdf').addEventListener('click', () => { selId = null; render(); window.print(); });
 
 // ── BOOT ──
