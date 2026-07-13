@@ -7,59 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="sopra-ui.css">
 <style>
-  :root{
-    --bg:#F7F5F0; --ink:#23211C; --muted:#8a857c; --line:#e6e1d8;
-    --ok:#1D9E75; --warn:#EF9F27; --risk:#E24B4A; --card:#fff;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  .serif{font-family:'DM Serif Display',serif}
-  .mono{font-family:'DM Mono',monospace}
-  a{color:inherit;text-decoration:none}
-
-  /* topbar */
-  header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line);background:#fff}
-  .brand{display:flex;align-items:center;gap:10px}
-  .brand .dot{width:12px;height:12px;border-radius:3px;background:var(--ok)}
-  .brand b{font-size:18px;letter-spacing:.2px}
-  .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
-  .who .role{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ok);border:1px solid var(--ok);border-radius:999px;padding:2px 9px}
-  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 14px;font-family:inherit;font-size:14px;color:var(--ink);transition:.15s}
-  .btn:hover{border-color:var(--ink)}
-  .btn.primary{background:var(--ok);color:#fff;border-color:var(--ok)}
-  .btn.primary:hover{filter:brightness(.95)}
-
-  /* layout */
-  main{max-width:980px;margin:0 auto;padding:48px 24px}
-  h1.serif{font-size:34px;margin:0 0 6px}
-  .sub{color:var(--muted);margin:0 0 36px;font-size:15px}
-
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
-  .app{display:block;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;transition:.15s;position:relative;overflow:hidden}
-  .app:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.06);border-color:transparent}
-  .app .ico{font-size:26px;margin-bottom:14px}
-  .app h3{margin:0 0 6px;font-size:18px}
-  .app p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
-  .app .tag{position:absolute;top:16px;right:16px;font-size:11px;color:var(--muted)}
-  .app.locked{opacity:.5;filter:grayscale(.6);cursor:not-allowed}
-  .app .edit{margin-top:14px;font-size:12px;color:var(--ok)}
-
-  /* login */
-  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .auth{width:100%;max-width:380px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:34px}
-  .auth .dot{width:14px;height:14px;border-radius:4px;background:var(--ok);margin-bottom:18px}
-  .auth h2{margin:0 0 4px;font-size:24px}
-  .auth .sub{margin:0 0 24px;font-size:14px}
-  .field{margin-bottom:14px}
-  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.3px}
-  .field input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:15px;background:var(--bg)}
-  .field input:focus{outline:none;border-color:var(--ok)}
-  .err{color:var(--risk);font-size:13px;min-height:18px;margin:4px 0 10px}
-  .hidden{display:none!important}
-  .center{text-align:center;color:var(--muted);font-size:14px;padding:60px}
+  /* Estilos específicos do Portal (o resto vem do kit sopra-ui.css) */
   /* gestão de usuários */
-  .adm-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
+  .adm-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
   .adm-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .adm-id{flex:1;min-width:200px}
   .adm-nome{font-size:15px;font-weight:600;padding:7px 9px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:300px;font-family:inherit}
@@ -230,7 +182,7 @@
     <div class="err" id="bkpRestoreErr"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="btn" id="bkpRestoreCancel">Cancelar</button>
-      <button class="btn primary" id="bkpRestoreGo" style="background:var(--risk);border-color:var(--risk)">Restaurar agora</button>
+      <button class="btn danger" id="bkpRestoreGo">Restaurar agora</button>
     </div>
   </div>
 </div>
