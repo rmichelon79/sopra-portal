@@ -46,6 +46,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 .brand{display:flex;align-items:center;gap:10px}
 .brand .dot{width:12px;height:12px;border-radius:3px;background:var(--ok)}
 .brand b{font-size:18px;letter-spacing:.2px}
+/* Logomarca Sopra (wordmark chumbo). Em fundo escuro, use .on-dark p/ inverter p/ branco. */
+.brand-logo{height:22px;width:auto;display:block}
+.brand-logo.on-dark{filter:brightness(0) invert(1)}
+.auth-logo{height:38px;width:auto;display:block;margin:0 auto 18px}
 .who{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted);flex-wrap:wrap}
 .who .role{font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--verde);border:1px solid var(--verde);border-radius:999px;padding:3px 10px}
 
