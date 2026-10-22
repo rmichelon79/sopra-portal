@@ -167,7 +167,7 @@ let NODES = [];
 let selId = null;
 let modalMode = null; // 'novo' | 'novoSub' | 'editar'
 let mFoto = null;     // data URL da foto no modal (ou null)
-let VIEW = 'org', CUSTOS = [], PREMISSAS = {}, SHOWCOST = false; // análise de custos (admin)
+let VIEW = 'org', CUSTOS = [], PREMISSAS = {}, SHOWCOST = false, custosErr = null; // análise de custos (admin)
 
 // Redimensiona a imagem escolhida para ~128px (base64 leve)
 function resizeImage(file, max = 128) {
@@ -476,12 +476,19 @@ function calcRow(r) {
   return { pct: Number(p.encargo_pct || 0), enc, mes, ano: mes * 12, inclui };
 }
 async function carregarCustos() {
-  const [{ data: prem }, { data: cust }] = await Promise.all([
+  custosErr = null;
+  const [r1, r2] = await Promise.all([
     SBC.from('org_custos_premissas').select('*').order('ordem'),
     SBC.from('org_custos').select('*').order('ordem').order('nome'),
   ]);
-  PREMISSAS = {}; (prem || []).forEach(p => PREMISSAS[p.vinculo] = p);
-  CUSTOS = cust || [];
+  if (r1.error || r2.error) {
+    custosErr = (r1.error || r2.error).message;
+    console.warn('carregarCustos', custosErr);
+    PREMISSAS = {}; CUSTOS = [];
+    return;
+  }
+  PREMISSAS = {}; (r1.data || []).forEach(p => PREMISSAS[p.vinculo] = p);
+  CUSTOS = r2.data || [];
 }
 function setView(v) {
   VIEW = v;
@@ -517,10 +524,16 @@ function renderCustos() {
 
   let h = `<div class="cst-bar" style="padding-top:18px">
     <div style="font-family:'DM Serif Display',serif;font-size:22px">Custos da equipe</div><span style="flex:1"></span>
+    <button class="btn" id="cst-reload">↻ Recarregar</button>
     <button class="btn" id="cst-add">+ Pessoa</button>
     <button class="btn" id="cst-autolink" title="Vincular por nome às caixas do organograma">⇄ Auto-vincular caixas${semVinc ? ` (${semVinc} sem)` : ''}</button>
     <button class="btn" id="cst-csv">↓ CSV</button>
   </div>`;
+  if (custosErr) {
+    h += `<div style="background:#FCEBEB;border:1px solid #E9BCBB;color:#A32D2D;border-radius:10px;padding:12px 14px;margin:8px 0;font-size:13px"><b>Não consegui carregar os custos.</b> ${esc(custosErr)}<br><span style="color:#7C7568">Se diz que a tabela não existe, rode <b>db/021_org_custos.sql</b> no SQL Editor e clique em <b>↻ Recarregar</b>.</span></div>`;
+  } else if (!rows.length) {
+    h += `<div style="background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:13px;color:var(--ink-soft)">Nenhuma pessoa na análise ainda. Se você acabou de rodar a migration <b>db/021</b>, clique em <b>↻ Recarregar</b> (sem precisar sair). Ou use <b>+ Pessoa</b>.</div>`;
+  }
   h += `<div class="cst-sec-title" style="margin-top:12px">Premissas de encargo — editável, recalcula tudo</div><div class="cst-prem">`;
   vincOpts.forEach(v => { const p = premDe(v); h += `<span class="pit"><b>${esc(v)}</b><input type="number" step="1" min="0" data-prem="${esc(v)}" value="${Math.round(Number(p.encargo_pct || 0) * 100)}">%${p.inclui_no_custo === false ? ' <span class="ro" title="não entra no custo (ex.: afastado INSS)">·não entra</span>' : ''}</span>`; });
   h += `</div>`;
@@ -615,6 +628,7 @@ $('custosView').addEventListener('change', async e => {
 $('custosView').addEventListener('click', async e => {
   const del = e.target.getAttribute && e.target.getAttribute('data-del');
   if (del) { if (!confirm('Excluir esta pessoa da análise de custos?')) return; const { error } = await SBC.from('org_custos').delete().eq('id', del); if (error) { alert(error.message); return; } CUSTOS = CUSTOS.filter(x => x.id !== del); renderCustos(); return; }
+  if (e.target.id === 'cst-reload') { await carregarCustos(); renderCustos(); return; }
   if (e.target.id === 'cst-add') return addCusto();
   if (e.target.id === 'cst-csv') return exportCSV();
   if (e.target.id === 'cst-autolink') return autoVincular();
