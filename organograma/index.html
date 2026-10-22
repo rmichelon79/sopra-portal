@@ -50,6 +50,36 @@
     body{background:#fff}
     .node{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
+  /* ── Custos (admin) ── */
+  .admin-only{align-items:center;gap:6px}
+  .node .cost-badge{position:absolute;left:0;right:0;bottom:0;background:#EEF0DC;color:#3E571A;font-size:11px;font-weight:700;text-align:center;padding:3px 4px;border-top:1px solid #d9e0c4}
+  .cst-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+  .cst-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(34,31,26,.04)}
+  .cst-card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .cst-card .v{font-family:'DM Serif Display',serif;font-size:22px;margin-top:3px}
+  .cst-card .s{font-size:12px;color:var(--muted)}
+  .cst-sec-title{font-size:13px;font-weight:700;margin:22px 0 8px;color:var(--ink)}
+  .cst-tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  table.cst{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1040px}
+  table.cst th{background:var(--paper);text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--line-2);white-space:nowrap}
+  table.cst td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.cst td.num,table.cst th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.cst tr:hover td{background:var(--paper)}
+  table.cst input,table.cst select{font-family:inherit;font-size:12.5px;border:1px solid transparent;background:transparent;border-radius:6px;padding:4px 6px;width:100%;color:var(--ink)}
+  table.cst input:focus,table.cst select:focus{outline:none;border-color:var(--ok);background:var(--card)}
+  table.cst input.rem{text-align:right;max-width:110px}
+  table.cst .ro{color:var(--muted)}
+  table.cst tr.tot td{font-weight:700;background:#000;color:#fff;border-bottom:0}
+  .cst-prem{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 4px}
+  .cst-prem .pit{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12px}
+  .cst-prem .pit input{width:52px;text-align:right;border:1px solid var(--line-2);border-radius:6px;padding:2px 5px;font-family:inherit}
+  .cst-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  table.rsm{border-collapse:collapse;width:100%;font-size:12px}
+  table.rsm th,table.rsm td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  table.rsm th:first-child,table.rsm td:first-child{text-align:left}
+  table.rsm thead th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+  table.rsm tr.rt td{font-weight:700;border-top:1px solid var(--line-2)}
+  .cst-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 2px}
 </style>
 </head>
 <body>
@@ -78,6 +108,11 @@
     </div>
   </header>
   <div class="toolbar">
+    <span class="admin-only" id="viewSwitch" style="display:none">
+      <button class="btn primary" id="btn-view-org">Organograma</button>
+      <button class="btn" id="btn-view-cst">Custos</button>
+      <span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>
+    </span>
     <button class="btn primary edit-only" id="btn-add-topo">+ Cargo (topo)</button>
     <button class="btn edit-only" id="btn-add-sub" disabled>+ Subordinado</button>
     <button class="btn edit-only" id="btn-edit" disabled>Editar</button>
@@ -86,9 +121,11 @@
     <button class="btn edit-only" id="btn-right" disabled title="Mover para a direita">▶</button>
     <span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>
     <button class="btn" id="btn-png">↓ Exportar PNG</button>
+    <label class="admin-only" id="costToggleWrap" style="display:none;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="costToggle"> custos nas caixas</label>
     <span id="hint" style="font-size:12px;color:var(--muted)">Clique num cargo para selecioná-lo.</span>
   </div>
-  <div class="canvas"><div id="chart"></div></div>
+  <div class="canvas" id="orgCanvas"><div id="chart"></div></div>
+  <div id="custosView" style="display:none;padding:0 22px 48px"></div>
 </div>
 
 <div id="bootView" class="empty">Carregando…</div>
@@ -130,6 +167,7 @@ let NODES = [];
 let selId = null;
 let modalMode = null; // 'novo' | 'novoSub' | 'editar'
 let mFoto = null;     // data URL da foto no modal (ou null)
+let VIEW = 'org', CUSTOS = [], PREMISSAS = {}, SHOWCOST = false; // análise de custos (admin)
 
 // Redimensiona a imagem escolhida para ~128px (base64 leve)
 function resizeImage(file, max = 128) {
@@ -189,9 +227,13 @@ $('logoutBtn').addEventListener('click', async () => { await SBC.auth.signOut();
 
 async function startApp() {
   $('whoName').textContent = SESSION.nome;
+  const admin = SESSION.role === 'admin';
   document.querySelectorAll('.edit-only').forEach(el => { el.style.display = SESSION.canEdit ? '' : 'none'; });
+  document.querySelectorAll('.admin-only').forEach(el => { el.style.display = admin ? 'inline-flex' : 'none'; });
   show('appView');
   await carregar();
+  if (admin) { try { await carregarCustos(); } catch (e) { console.warn('custos', e); } }
+  setView('org');
 }
 
 // ── DADOS ──
@@ -249,7 +291,14 @@ function render() {
       const pcx = p.x + NODE_W / 2, pby = p.y + NODE_H, ccx = c.x + NODE_W / 2, cty = c.y, midY = pby + GAP_Y / 2;
       lines += `<polyline points="${pcx},${pby} ${pcx},${midY} ${ccx},${midY} ${ccx},${cty}" fill="none" stroke="#c9c3b6" stroke-width="2"/>`;
     });
-    const nodes = NODES.map(n => { const p = pos[n.id]; return p ? `<div class="node${n.id === selId ? ' sel' : ''}" data-id="${n.id}" style="position:absolute;left:${p.x}px;top:${p.y}px">${nodeInner(n)}</div>` : ''; }).join('');
+    const admin = SESSION && SESSION.role === 'admin';
+    const cm = {};
+    if (admin && SHOWCOST) CUSTOS.forEach(r => { if (r.node_id) cm[r.node_id] = (cm[r.node_id] || 0) + calcRow(r).mes; });
+    const nodes = NODES.map(n => {
+      const p = pos[n.id]; if (!p) return '';
+      const badge = (admin && SHOWCOST && cm[n.id]) ? `<div class="cost-badge" title="${money0(cm[n.id] * 12)}/ano">${money0(cm[n.id])}/mês</div>` : '';
+      return `<div class="node${n.id === selId ? ' sel' : ''}" data-id="${n.id}" style="position:absolute;left:${p.x}px;top:${p.y}px">${nodeInner(n)}${badge}</div>`;
+    }).join('');
     chart.innerHTML = `<div style="position:relative;width:${W}px;height:${H}px;margin:0 auto">
       <svg width="${W}" height="${H}" style="position:absolute;left:0;top:0;pointer-events:none">${lines}</svg>${nodes}</div>`;
     chart.querySelectorAll('.node').forEach(el => el.addEventListener('click', () => { selId = el.dataset.id; render(); }));
@@ -411,6 +460,168 @@ async function exportarPNG() {
   finally { btn.textContent = t; btn.disabled = false; }
 }
 $('btn-png').addEventListener('click', exportarPNG);
+
+// ── CUSTOS (admin) ─────────────────────────────────────────────────────────
+const money  = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money0 = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const STATUS_OPTS = ['Ativo', 'Vaga prevista', 'Afastado'];
+const FOLHA_VINC = ['CLT', 'CLT Aprendiz', 'CLT INSS', 'Pró-labore']; // folha; resto = serviços PJ
+function premDe(v) { return PREMISSAS[v] || { encargo_pct: 0, inclui_no_custo: true, ordem: 99 }; }
+function calcRow(r) {
+  const p = premDe(r.vinculo);
+  const inclui = p.inclui_no_custo !== false;
+  const rem = Number(r.remuneracao || 0);
+  const enc = inclui ? rem * Number(p.encargo_pct || 0) : 0;
+  const mes = inclui ? rem + enc : 0;
+  return { pct: Number(p.encargo_pct || 0), enc, mes, ano: mes * 12, inclui };
+}
+async function carregarCustos() {
+  const [{ data: prem }, { data: cust }] = await Promise.all([
+    SBC.from('org_custos_premissas').select('*').order('ordem'),
+    SBC.from('org_custos').select('*').order('ordem').order('nome'),
+  ]);
+  PREMISSAS = {}; (prem || []).forEach(p => PREMISSAS[p.vinculo] = p);
+  CUSTOS = cust || [];
+}
+function setView(v) {
+  VIEW = v;
+  $('btn-view-org').classList.toggle('primary', v === 'org');
+  $('btn-view-cst').classList.toggle('primary', v === 'custos');
+  $('orgCanvas').style.display = v === 'org' ? '' : 'none';
+  $('custosView').style.display = v === 'custos' ? '' : 'none';
+  ['btn-add-topo', 'btn-add-sub', 'btn-edit', 'btn-del', 'btn-left', 'btn-right', 'btn-png'].forEach(id => {
+    const el = $(id); if (!el) return;
+    el.style.display = v !== 'org' ? 'none' : (el.classList.contains('edit-only') && !SESSION.canEdit ? 'none' : '');
+  });
+  $('costToggleWrap').style.display = (v === 'org' && SESSION.role === 'admin') ? 'inline-flex' : 'none';
+  $('hint').style.display = v === 'org' ? '' : 'none';
+  if (v === 'custos') renderCustos();
+  if (v === 'org') render();
+}
+function resumoTabela(titulo, rows, keyFn, totMes) {
+  const g = {};
+  rows.forEach(r => { const k = keyFn(r) || '—'; const c = calcRow(r); (g[k] = g[k] || { q: 0, mes: 0, ano: 0 }); g[k].q++; g[k].mes += c.mes; g[k].ano += c.ano; });
+  const keys = Object.keys(g).sort((a, b) => g[b].mes - g[a].mes);
+  let tm = 0, ta = 0, tq = 0;
+  const body = keys.map(k => { const x = g[k]; tm += x.mes; ta += x.ano; tq += x.q; return `<tr><td>${esc(k)}</td><td>${x.q}</td><td>${money0(x.mes)}</td><td>${money0(x.ano)}</td><td>${totMes ? Math.round(x.mes / totMes * 100) : 0}%</td></tr>`; }).join('');
+  return `<div><div style="font-size:12px;font-weight:600;margin-bottom:4px">${esc(titulo)}</div><table class="rsm"><thead><tr><th>${esc(titulo.replace('Por ', ''))}</th><th>Qtde</th><th>Mensal</th><th>Anual</th><th>%</th></tr></thead><tbody>${body}<tr class="rt"><td>Total</td><td>${tq}</td><td>${money0(tm)}</td><td>${money0(ta)}</td><td>100%</td></tr></tbody></table></div>`;
+}
+function renderCustos() {
+  const rows = CUSTOS.slice().sort((a, b) => (a.ordem - b.ordem) || (a.nome || '').localeCompare(b.nome || ''));
+  let totMes = 0, totAno = 0, totEnc = 0, folhaMes = 0, servMes = 0;
+  rows.forEach(r => { const c = calcRow(r); totMes += c.mes; totAno += c.ano; totEnc += c.enc; if (FOLHA_VINC.includes(r.vinculo)) folhaMes += c.mes; else servMes += c.mes; });
+  const nAtivos = rows.filter(r => r.status !== 'Vaga prevista').length;
+  const vincOpts = Object.keys(PREMISSAS).sort((a, b) => premDe(a).ordem - premDe(b).ordem);
+  const nodeOpts = NODES.slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  const semVinc = rows.filter(r => !r.node_id).length;
+
+  let h = `<div class="cst-bar" style="padding-top:18px">
+    <div style="font-family:'DM Serif Display',serif;font-size:22px">Custos da equipe</div><span style="flex:1"></span>
+    <button class="btn" id="cst-add">+ Pessoa</button>
+    <button class="btn" id="cst-autolink" title="Vincular por nome às caixas do organograma">⇄ Auto-vincular caixas${semVinc ? ` (${semVinc} sem)` : ''}</button>
+    <button class="btn" id="cst-csv">↓ CSV</button>
+  </div>`;
+  h += `<div class="cst-sec-title" style="margin-top:12px">Premissas de encargo — editável, recalcula tudo</div><div class="cst-prem">`;
+  vincOpts.forEach(v => { const p = premDe(v); h += `<span class="pit"><b>${esc(v)}</b><input type="number" step="1" min="0" data-prem="${esc(v)}" value="${Math.round(Number(p.encargo_pct || 0) * 100)}">%${p.inclui_no_custo === false ? ' <span class="ro" title="não entra no custo (ex.: afastado INSS)">·não entra</span>' : ''}</span>`; });
+  h += `</div>`;
+  h += `<div class="cst-cards">
+    <div class="cst-card"><div class="l">Custo mensal</div><div class="v">${money0(totMes)}</div><div class="s">${money0(totAno)} / ano</div></div>
+    <div class="cst-card"><div class="l">Folha (CLT + pró-labore)</div><div class="v">${money0(folhaMes)}</div><div class="s">${totMes ? Math.round(folhaMes / totMes * 100) : 0}% do custo</div></div>
+    <div class="cst-card"><div class="l">Serviços (PJ)</div><div class="v">${money0(servMes)}</div><div class="s">${totMes ? Math.round(servMes / totMes * 100) : 0}% do custo</div></div>
+    <div class="cst-card"><div class="l">Pessoas</div><div class="v">${rows.length}</div><div class="s">${nAtivos} ativos</div></div>
+  </div>`;
+  h += `<div class="cst-tbl-wrap"><table class="cst"><thead><tr>
+    <th>Nome</th><th>Vínculo</th><th>Área</th><th>Função</th><th>Status</th>
+    <th class="num">Remuneração</th><th class="num">Enc.%</th><th class="num">Encargos</th>
+    <th class="num">Custo mês</th><th class="num">Custo ano</th><th>Caixa no organograma</th><th></th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    const c = calcRow(r);
+    h += `<tr data-id="${r.id}">
+      <td><input data-f="nome" value="${esc(r.nome || '')}" style="min-width:160px"></td>
+      <td><select data-f="vinculo">${vincOpts.map(v => `<option ${v === r.vinculo ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></td>
+      <td><input data-f="area" value="${esc(r.area || '')}" style="min-width:100px"></td>
+      <td><input data-f="funcao" value="${esc(r.funcao || '')}" style="min-width:150px"></td>
+      <td><select data-f="status">${STATUS_OPTS.map(s => `<option ${s === r.status ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></td>
+      <td class="num"><input class="rem" data-f="remuneracao" type="number" step="0.01" value="${Number(r.remuneracao || 0)}"></td>
+      <td class="num ro">${c.inclui ? Math.round(c.pct * 100) + '%' : '—'}</td>
+      <td class="num ro">${money(c.enc)}</td>
+      <td class="num ro"><b>${money(c.mes)}</b></td>
+      <td class="num ro">${money(c.ano)}</td>
+      <td><select data-f="node_id"><option value="">— não vinculado —</option>${nodeOpts.map(n => `<option value="${n.id}" ${n.id === r.node_id ? 'selected' : ''}>${esc(n.nome)}${n.cargo ? ' — ' + esc(n.cargo) : ''}</option>`).join('')}</select></td>
+      <td><button class="btn danger" data-del="${r.id}" style="padding:3px 8px" title="Excluir">✕</button></td></tr>`;
+  });
+  h += `<tr class="tot"><td colspan="5">TOTAL (${rows.length} pessoas)</td><td class="num">—</td><td class="num"></td><td class="num">${money(totEnc)}</td><td class="num">${money(totMes)}</td><td class="num">${money(totAno)}</td><td></td><td></td></tr>`;
+  h += `</tbody></table></div>`;
+  h += `<div class="cst-sec-title">Resumos</div><div class="cst-resumo">
+    ${resumoTabela('Por vínculo', rows, r => r.vinculo, totMes)}
+    ${resumoTabela('Por área', rows, r => r.area, totMes)}
+    ${resumoTabela('Por status', rows, r => r.status, totMes)}</div>`;
+  $('custosView').innerHTML = h;
+}
+function normNome(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
+async function autoVincular() {
+  let n = 0; const ups = [];
+  CUSTOS.filter(r => !r.node_id).forEach(r => {
+    const cn = normNome(r.nome); if (!cn) return;
+    const m = NODES.find(nd => {
+      const nn = normNome(nd.nome); if (!nn) return false;
+      if (cn === nn || cn.startsWith(nn + ' ') || nn.startsWith(cn + ' ')) return true;
+      const a = cn.split(' '), b = nn.split(' ');
+      return a[0] === b[0] && a[a.length - 1] === b[b.length - 1];
+    });
+    if (m) { r.node_id = m.id; ups.push(r); n++; }
+  });
+  for (const r of ups) await SBC.from('org_custos').update({ node_id: r.node_id }).eq('id', r.id);
+  renderCustos();
+  alert(n ? `${n} pessoa(s) vinculada(s) por nome. Confira e ajuste o que faltar na coluna "Caixa no organograma".` : 'Nenhuma correspondência automática. Vincule manualmente na coluna "Caixa no organograma".');
+}
+async function addCusto() {
+  const vinc = Object.keys(PREMISSAS).sort((a, b) => premDe(a).ordem - premDe(b).ordem)[0] || 'PJ';
+  const ordem = CUSTOS.reduce((m, r) => Math.max(m, r.ordem || 0), 0) + 1;
+  const { data, error } = await SBC.from('org_custos').insert({ nome: 'Novo colaborador', vinculo: vinc, status: 'Ativo', remuneracao: 0, ordem }).select('*').single();
+  if (error) { alert(error.message); return; }
+  CUSTOS.push(data); renderCustos();
+}
+function exportCSV() {
+  const rows = CUSTOS.slice().sort((a, b) => (a.ordem - b.ordem));
+  const head = ['Nome', 'Vínculo', 'Área', 'Função', 'Status', 'Remuneração', 'Encargos %', 'Encargos R$', 'Custo mensal', 'Custo anual', 'Caixa'];
+  const q = s => `"${String(s == null ? '' : s).replace(/"/g, '""')}"`;
+  const lines = [head.map(q).join(';')];
+  rows.forEach(r => { const c = calcRow(r); const nd = NODES.find(n => n.id === r.node_id); lines.push([r.nome, r.vinculo, r.area || '', r.funcao || '', r.status || '', Number(r.remuneracao || 0).toFixed(2), (c.pct * 100).toFixed(0) + '%', c.enc.toFixed(2), c.mes.toFixed(2), c.ano.toFixed(2), nd ? nd.nome : ''].map(q).join(';')); });
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'custos_equipe.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('custosView').addEventListener('change', async e => {
+  const t = e.target;
+  const prem = t.getAttribute('data-prem');
+  if (prem) {
+    const pct = Math.max(0, Number(t.value) || 0) / 100;
+    if (PREMISSAS[prem]) PREMISSAS[prem].encargo_pct = pct;
+    const { error } = await SBC.from('org_custos_premissas').update({ encargo_pct: pct }).eq('vinculo', prem);
+    if (error) alert('Erro ao salvar premissa: ' + error.message);
+    renderCustos(); return;
+  }
+  const tr = t.closest('tr[data-id]'); if (!tr) return;
+  const id = tr.dataset.id, f = t.getAttribute('data-f'); if (!f) return;
+  let val = t.value;
+  if (f === 'remuneracao') val = Number(val) || 0;
+  if (f === 'node_id') val = val || null;
+  const r = CUSTOS.find(x => x.id === id); if (r) r[f] = val;
+  const { error } = await SBC.from('org_custos').update({ [f]: val, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { alert('Erro ao salvar: ' + error.message); return; }
+  renderCustos();
+});
+$('custosView').addEventListener('click', async e => {
+  const del = e.target.getAttribute && e.target.getAttribute('data-del');
+  if (del) { if (!confirm('Excluir esta pessoa da análise de custos?')) return; const { error } = await SBC.from('org_custos').delete().eq('id', del); if (error) { alert(error.message); return; } CUSTOS = CUSTOS.filter(x => x.id !== del); renderCustos(); return; }
+  if (e.target.id === 'cst-add') return addCusto();
+  if (e.target.id === 'cst-csv') return exportCSV();
+  if (e.target.id === 'cst-autolink') return autoVincular();
+});
+$('btn-view-org').addEventListener('click', () => setView('org'));
+$('btn-view-cst').addEventListener('click', () => setView('custos'));
+$('costToggle').addEventListener('change', e => { SHOWCOST = e.target.checked; render(); });
 
 // ── BOOT ──
 (async () => {
